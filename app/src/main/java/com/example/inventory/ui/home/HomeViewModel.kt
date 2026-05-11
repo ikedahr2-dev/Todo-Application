@@ -18,17 +18,34 @@ package com.example.inventory.ui.home
 
 import androidx.lifecycle.ViewModel
 import com.example.inventory.data.Item
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * ViewModel to retrieve all items in the Room database.
  */
+
+data class HomeUiState(
+    val itemList: List<Item> = listOf(),
+    val showDatePicker: Boolean = false //カレンダー表示中のフラグ
+)
+
 class HomeViewModel() : ViewModel() {
+    private val _uiState = MutableStateFlow(HomeUiState())
+
+    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    fun onAddClick(){
+        _uiState.update { it.copy(showDatePicker = true) }
+    } //プラスボタンを押した際のカレンダー呼び出し
+
+    fun onDismissDatePicker() {
+        _uiState.update { it.copy(showDatePicker = false) }
+    } //カレンダーを閉じる際に呼び出し
+
     companion object {
         private const val TIMEOUT_MILLIS = 5_000L
     }
 }
-
-/**
- * Ui State for HomeScreen
- */
-data class HomeUiState(val itemList: List<Item> = listOf())
