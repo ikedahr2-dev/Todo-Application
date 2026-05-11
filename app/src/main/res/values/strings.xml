@@ -37,4 +37,6 @@
     <string name="sell">Sell</string>
     <string name="yes">Yes</string>
     <string name="required_fields">*required fields</string>
+
+    <string name="no_item_description">在庫がありません</string>
 </resources>
