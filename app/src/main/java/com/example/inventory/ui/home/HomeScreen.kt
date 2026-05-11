@@ -115,7 +115,7 @@ private fun HomeBody(
     ) {
         if (itemList.isEmpty()) {
             Text(
-                text = stringResource(R.string.no_item_description),
+                text = stringResource(R.string.no_schedule),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(contentPadding),
