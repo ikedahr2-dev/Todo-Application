@@ -47,6 +47,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 
 
+
 object HomeDestination : NavigationDestination {
     override val route = "home"
     override val titleRes = R.string.app_name
@@ -69,6 +70,12 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
+        },
+        bottomBar = {
+            ViewToggleButton(
+                onListClick = { /* 現在地なので何もしない */ },
+                onCalendarClick = { /* カレンダー表示に切り替える処理(フラグ操作など) */ }
+            )
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -223,6 +230,39 @@ private fun InventoryItem(
                 text = stringResource(R.string.in_stock, item.quantity),
                 style = MaterialTheme.typography.titleMedium
             )
+        }
+    }
+}
+@Composable
+fun ViewToggleButton(
+    onListClick: () -> Unit,
+    onCalendarClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.material3.BottomAppBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            androidx.compose.material3.Button(
+                onClick = onListClick,
+                modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text("リスト")
+            }
+            androidx.compose.material3.Button(
+                onClick = onCalendarClick,
+                modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text("カレンダー")
+            }
         }
     }
 }
