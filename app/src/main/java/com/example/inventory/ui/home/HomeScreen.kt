@@ -37,10 +37,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.inventory.InventoryTopAppBar
 import com.example.inventory.R
 import com.example.inventory.data.Item
 import com.example.inventory.ui.item.formatedPrice
@@ -52,7 +50,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.sp
-
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
+import com.example.inventory.ui.theme.md_theme_light_primary
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
@@ -89,8 +92,13 @@ fun HomeScreen(
             ) {
                 FloatingActionButton(
                     onClick = { viewModel.onAddClick() },
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.offset(y = (-30).dp)
+                    shape = CircleShape,   // 丸
+                    containerColor = Color.White,   // 中を白
+                    contentColor = md_theme_light_primary,   // アイコン色
+                    modifier = Modifier   // 位置・サイズ・枠
+                        .offset(y = (-15).dp)
+                        .size(75.dp)
+                        .border(BorderStroke(1.5.dp, md_theme_light_primary), CircleShape)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
@@ -137,7 +145,6 @@ fun HomeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
             ) {
 
                 HomeBody(
@@ -205,6 +212,8 @@ private fun HomeBody(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
+
+    var selectedCategory by remember { mutableStateOf("すべて") }
     // この先増えるなら格納先作って呼び出し、何個かで固定なら直で書けばいいかなって感じ^-^
     val categories = listOf("すべて", "仕事", "プライベート", "その他")
 
@@ -223,16 +232,16 @@ private fun HomeBody(
         {
             items(categories) { category ->
                 FilterChip(
-                    selected = (category == "すべて"), // すべてが選択された状態
-                    onClick = {  },
+                    selected = (category == selectedCategory), // 選択
+                    onClick = { selectedCategory = category },
                     label = { Text(category) },
-                    shape = androidx.compose.foundation.shape.CircleShape,   // 形
+                    shape = CircleShape,   // 形
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = androidx.compose.ui.graphics.Color(0xFF86AF91), 
-                        selectedLabelColor = androidx.compose.ui.graphics.Color.White
+                        selectedContainerColor = md_theme_light_primary,
+                        selectedLabelColor = Color.White
                     ),
                     border = FilterChipDefaults.filterChipBorder(
-                        borderColor = androidx.compose.ui.graphics.Color(0xFF86AF91)
+                        borderColor = md_theme_light_primary
                     )
                 )
             }
@@ -253,6 +262,11 @@ private fun HomeBody(
                 )
             }
         }
+        val filteredList = if (selectedCategory == "すべて") {
+            itemList
+        } else {
+            itemList.filter { it.category == selectedCategory }
+        }
 
         if (itemList.isEmpty() && savedTexts.isEmpty()) {
             Text(
@@ -263,7 +277,7 @@ private fun HomeBody(
             )
         } else {
             InventoryList(
-                itemList = itemList,
+                itemList = filteredList,
                 onItemClick = { onItemClick(it.id) },
                 contentPadding = contentPadding,
                 modifier = Modifier.padding(horizontal = dimensionResource(id = R.dimen.padding_small))
