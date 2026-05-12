@@ -2,12 +2,14 @@ package com.example.inventory.ui.home
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -45,7 +47,10 @@ import com.example.inventory.ui.item.formatedPrice
 import com.example.inventory.ui.navigation.NavigationDestination
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 
 
 object HomeDestination : NavigationDestination {
@@ -74,24 +79,28 @@ fun HomeScreen(
         bottomBar = {
             ViewToggleButton(
                 onListClick = { /* 現在地なので何もしない */ },
-                onCalendarClick = { /* カレンダー表示に切り替える処理(フラグ操作など) */ }
+                onCalendarClick = { viewModel.onCalenderClick() }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { viewModel.onAddClick() }, // ★修正: 直接遷移せず、カレンダーを表示するフラグを立てる
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.padding(dimensionResource(id = R.dimen.padding_large))
+            Column(
+                horizontalAlignment = Alignment.End
             ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = stringResource(R.string.item_entry_title)
-                )
+                FloatingActionButton(
+                    onClick = { viewModel.onAddClick() },
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.offset(y = (-30).dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = stringResource(R.string.item_entry_title)
+                    )
+                }
             }
         },
     ) { innerPadding ->
 
-        //カレンダー表示
+        //カレンダー閉じる
         if (uiState.showDatePicker) {
             DatePickerDialog(
                 onDismissRequest = { viewModel.onDismissDatePicker() },
@@ -110,6 +119,37 @@ fun HomeScreen(
                 }
             ) {
                 DatePicker(state = datePickerState)
+            }
+        }
+
+
+        //テキストボックス閉じる
+        if (uiState.showInputBox) {
+
+            var text by remember { mutableStateOf("") }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    ) {
+                        viewModel.onDismissInputBox() // ←画面タップで閉じる
+                    }
+            )  {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text(stringResource(R.string.stay_schedule)) },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = 500.dp)
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                        ){}
+                )
             }
         }
 

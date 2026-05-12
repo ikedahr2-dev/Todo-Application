@@ -17,7 +17,8 @@ import kotlinx.coroutines.flow.update
  */
 data class HomeUiState(
     val itemList: List<Item> = listOf(),
-    val showDatePicker: Boolean = false // カレンダー表示用のフラグ
+    val showDatePicker: Boolean = false, // カレンダー表示用のフラグ
+    val showInputBox: Boolean = false   //テキストボックス表示用のフラグ,
 )
 
 /**
@@ -31,18 +32,25 @@ class HomeViewModel : ViewModel() {
     // HomeScreenから参照される読み取り専用のStateFlow
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    /**
-     * 追加ボタン（FAB）が押された時にカレンダーを表示する
-     */
-    fun onAddClick() {
+    //カレンダー表示
+    fun onCalenderClick() {
         _uiState.update { it.copy(showDatePicker = true) }
     }
 
-    /**
-     * カレンダーを閉じる（OK/キャンセル時）
-     */
+    //テキストボックス表示
+    fun onAddClick() {
+        _uiState.update { it.copy(showInputBox = true) }
+    }
+
+
+    //カレンダーを閉じる
     fun onDismissDatePicker() {
         _uiState.update { it.copy(showDatePicker = false) }
+    }
+
+    //テキストボックスを閉じる
+    fun onDismissInputBox() {
+        _uiState.update { it.copy(showInputBox = false) }
     }
 
     companion object {
