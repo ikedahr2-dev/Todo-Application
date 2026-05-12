@@ -1,12 +1,31 @@
 package com.example.inventory.ui.home
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,10 +56,12 @@ fun HomeScreen(
     navigateToItemEntry: () -> Unit,
     navigateToItemUpdate: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: HomeViewModel = viewModel() // 別ファイルのViewModelを使用
+    viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+
+    //カレンダーの状態管理
     val datePickerState = rememberDatePickerState()
 
     Scaffold(
@@ -54,7 +75,7 @@ fun HomeScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { viewModel.onAddClick() },
+                onClick = { viewModel.onAddClick() }, // ★修正: 直接遷移せず、カレンダーを表示するフラグを立てる
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.padding(dimensionResource(id = R.dimen.padding_large))
             ) {
@@ -65,6 +86,8 @@ fun HomeScreen(
             }
         },
     ) { innerPadding ->
+
+        //カレンダー表示
         if (uiState.showDatePicker) {
             DatePickerDialog(
                 onDismissRequest = { viewModel.onDismissDatePicker() },
@@ -73,12 +96,12 @@ fun HomeScreen(
                         viewModel.onDismissDatePicker()
                         navigateToItemEntry()
                     }) {
-                        Text("OK")
+                        Text(stringResource(R.string.no_item_OK))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { viewModel.onDismissDatePicker() }) {
-                        Text("キャンセル")
+                        Text(stringResource(R.string.no_item_cancel))
                     }
                 }
             ) {
@@ -136,12 +159,10 @@ private fun InventoryList(
         contentPadding = contentPadding
     ) {
         items(items = itemList, key = { it.id }) { item ->
-            InventoryItem(
-                item = item,
+            InventoryItem(item = item,
                 modifier = Modifier
                     .padding(dimensionResource(id = R.dimen.padding_small))
-                    .clickable { onItemClick(item) }
-            )
+                    .clickable { onItemClick(item) })
         }
     }
 }
@@ -158,10 +179,18 @@ private fun InventoryItem(
             modifier = Modifier.padding(dimensionResource(id = R.dimen.padding_large)),
             verticalArrangement = Arrangement.spacedBy(dimensionResource(id = R.dimen.padding_small))
         ) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Text(text = item.name, style = MaterialTheme.typography.titleLarge)
+            Row(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = item.name,
+                    style = MaterialTheme.typography.titleLarge,
+                )
                 Spacer(Modifier.weight(1f))
-                Text(text = item.formatedPrice(), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = item.formatedPrice(),
+                    style = MaterialTheme.typography.titleMedium
+                )
             }
             Text(
                 text = stringResource(R.string.in_stock, item.quantity),

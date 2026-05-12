@@ -21,7 +21,7 @@
     <string name="delete_question">Are you sure you want to delete?</string>
 
     //----- スケジュール無し -----//
-    <string name="no_schedule">予定はありません</string>
+    <!--<string name="no_schedule">予定はありません</string>-->
     <string name="edit_item_title">Edit Item</string>
     <string name="item">Item</string>
     <string name="item_detail_title">Item Details</string>
@@ -37,6 +37,7 @@
     <string name="sell">Sell</string>
     <string name="yes">Yes</string>
     <string name="required_fields">*required fields</string>
-
     <string name="no_item_description">予定はありません</string>
+    <string name="no_item_OK">OK</string>
+    <string name="no_item_cancel">キャンセル</string>
 </resources>
