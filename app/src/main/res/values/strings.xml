@@ -14,7 +14,7 @@
   ~ limitations under the License.
   -->
 <resources>
-    <string name="app_name">" "</string>
+    <string name="app_name">"TODO"</string>
     <string name="attention">Attention</string>
     <string name="back_button">Back</string>
     <string name="delete">Delete</string>

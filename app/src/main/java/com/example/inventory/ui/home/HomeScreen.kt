@@ -24,7 +24,9 @@ import com.example.inventory.R
 import com.example.inventory.data.Item
 import com.example.inventory.ui.item.formatedPrice
 import com.example.inventory.ui.navigation.NavigationDestination
-import com.example.inventory.ui.theme.InventoryTheme
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
@@ -46,11 +48,6 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            InventoryTopAppBar(
-                title = stringResource(HomeDestination.titleRes),
-                canNavigateBack = false,
-                scrollBehavior = scrollBehavior
-            )
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -95,6 +92,7 @@ fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeBody(
     itemList: List<Item>,
@@ -102,10 +100,39 @@ private fun HomeBody(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
+    // この先増えるなら格納先作って呼び出し、何個かで固定なら直で書けばいいかなって感じ^-^
+    val categories = listOf("すべて", "仕事", "プライベート", "その他")
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier,
+        modifier = modifier.padding(contentPadding), // 余白
     ) {
+
+        // ----- ナビゲーションバー ----- //
+
+        androidx.compose.foundation.lazy.LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            items(categories) { category ->
+
+                FilterChip(
+                    selected = (category == "すべて"), // すべてが選択された状態
+                    onClick = {  },
+                    label = { Text(category) },
+                    shape = androidx.compose.foundation.shape.CircleShape,   // 形
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = androidx.compose.ui.graphics.Color(0xFF86AF91), 
+                        selectedLabelColor = androidx.compose.ui.graphics.Color.White
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        borderColor = androidx.compose.ui.graphics.Color(0xFF86AF91)
+                    )
+                )
+            }
+        }
+
         if (itemList.isEmpty()) {
             Text(
                 text = stringResource(R.string.no_item_description),
