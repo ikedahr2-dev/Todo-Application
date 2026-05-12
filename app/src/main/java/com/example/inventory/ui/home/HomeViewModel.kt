@@ -18,7 +18,8 @@ import kotlinx.coroutines.flow.update
 data class HomeUiState(
     val itemList: List<Item> = listOf(),
     val showDatePicker: Boolean = false, // カレンダー表示用のフラグ
-    val showInputBox: Boolean = false   //テキストボックス表示用のフラグ,
+    val showInputBox: Boolean = false,   //テキストボックス表示用のフラグ
+    val savedTexts:  List<String> = emptyList()
 )
 
 /**
@@ -53,6 +54,13 @@ class HomeViewModel : ViewModel() {
         _uiState.update { it.copy(showInputBox = false) }
     }
 
+    fun addText(text: String) {
+        _uiState.update {
+            it.copy(
+                savedTexts = it.savedTexts + text
+            )
+        }
+    }
     companion object {
         private const val TIMEOUT_MILLIS = 5_000L
     }

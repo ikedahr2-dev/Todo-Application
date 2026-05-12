@@ -51,6 +51,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.sp
 
 
 object HomeDestination : NavigationDestination {
@@ -68,9 +69,9 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-
     //カレンダーの状態管理
     val datePickerState = rememberDatePickerState()
+    var text by remember { mutableStateOf("") }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -100,20 +101,26 @@ fun HomeScreen(
         },
     ) { innerPadding ->
 
-        //カレンダー閉じる
         if (uiState.showDatePicker) {
             DatePickerDialog(
-                onDismissRequest = { viewModel.onDismissDatePicker() },
+                onDismissRequest = {
+                    viewModel.onDismissDatePicker()
+                },
                 confirmButton = {
-                    TextButton(onClick = {
-                        viewModel.onDismissDatePicker()
-                        navigateToItemEntry()
-                    }) {
+                    TextButton(
+                        onClick = {
+                            viewModel.onDismissDatePicker()
+                        }
+                    ) {
                         Text(stringResource(R.string.no_item_OK))
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { viewModel.onDismissDatePicker() }) {
+                    TextButton(
+                        onClick = {
+                            viewModel.onDismissDatePicker()
+                        }
+                    ) {
                         Text(stringResource(R.string.no_item_cancel))
                     }
                 }
@@ -122,43 +129,70 @@ fun HomeScreen(
             }
         }
 
+        var text by remember { mutableStateOf("") }
 
-        //テキストボックス閉じる
-        if (uiState.showInputBox) {
+        Box(modifier = Modifier.fillMaxSize()) {
 
-            var text by remember { mutableStateOf("") }
-
-            Box(
+            //保存したテキスト表示
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                    ) {
-                        viewModel.onDismissInputBox() // ←画面タップで閉じる
-                    }
-            )  {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text(stringResource(R.string.stay_schedule)) },
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .offset(y = 500.dp)
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                        ){}
+                    .padding(innerPadding)
+            ) {
+
+                HomeBody(
+                    itemList = uiState.itemList,
+                    onItemClick = navigateToItemUpdate,
+                    savedTexts = uiState.savedTexts,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = innerPadding,
                 )
             }
-        }
 
-        HomeBody(
-            itemList = uiState.itemList,
-            onItemClick = navigateToItemUpdate,
-            modifier = modifier.fillMaxSize(),
-            contentPadding = innerPadding,
-        )
+            //入力ボックス
+            if (uiState.showInputBox) {
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember {
+                                androidx.compose.foundation.interaction.MutableInteractionSource()
+                            }
+                        ) {
+                            viewModel.onDismissInputBox()
+                        }
+                ) {
+
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+
+                        OutlinedTextField(
+                            value = text,
+                            onValueChange = { text = it },
+                            label = { Text(stringResource(R.string.stay_schedule)) },
+                            modifier = Modifier
+                                .fillMaxWidth(0.8f)
+                        )
+
+                        androidx.compose.material3.Button(
+                            onClick = {
+                                viewModel.addText(text)
+                                text = ""
+                                viewModel.onDismissInputBox()
+                            },
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            Text(stringResource(R.string.enter))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -167,6 +201,7 @@ fun HomeScreen(
 private fun HomeBody(
     itemList: List<Item>,
     onItemClick: (Int) -> Unit,
+    savedTexts: List<String>,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -184,9 +219,9 @@ private fun HomeBody(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             modifier = Modifier.fillMaxWidth()
-        ) {
+        )
+        {
             items(categories) { category ->
-
                 FilterChip(
                     selected = (category == "すべて"), // すべてが選択された状態
                     onClick = {  },
@@ -203,7 +238,23 @@ private fun HomeBody(
             }
         }
 
-        if (itemList.isEmpty()) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            savedTexts.forEach { text ->
+                Text(
+                    text = "・$text",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    fontSize = 25.sp,
+                    textAlign = TextAlign.Start
+                )
+            }
+        }
+
+        if (itemList.isEmpty() && savedTexts.isEmpty()) {
             Text(
                 text = stringResource(R.string.no_item_description),
                 textAlign = TextAlign.Center,
