@@ -9,12 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.inventory.ui.home.HomeDestination
 import com.example.inventory.ui.home.HomeScreen
-import com.example.inventory.ui.item.ItemDetailsDestination
-import com.example.inventory.ui.item.ItemDetailsScreen
-import com.example.inventory.ui.item.ItemEditDestination
-import com.example.inventory.ui.item.ItemEditScreen
-import com.example.inventory.ui.item.ItemEntryDestination
-import com.example.inventory.ui.item.ItemEntryScreen
+
 
 /**
  * アプリケーションのナビゲーショングラフを提供します。
@@ -26,52 +21,12 @@ fun InventoryNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = HomeDestination.route,
-        modifier = modifier
+        startDestination = HomeDestination.route
     ) {
-        // ホーム画面
-        composable(route = HomeDestination.route) {
+        composable(HomeDestination.route) {
             HomeScreen(
-                navigateToItemEntry = { navController.navigate(ItemEntryDestination.route) },
-                navigateToItemUpdate = {
-                    navController.navigate("${ItemDetailsDestination.route}/${it}")
-                }
-            )
-        }
-
-        // アイテム新規登録画面
-        composable(route = ItemEntryDestination.route) {
-            ItemEntryScreen(
-                navigateBack = { navController.popBackStack() },
-                onNavigateUp = { navController.navigateUp() }
-            )
-        }
-
-        // アイテム詳細画面
-        composable(
-            route = ItemDetailsDestination.routeWithArgs,
-            arguments = listOf(navArgument(ItemDetailsDestination.itemIdArg) {
-                type = NavType.IntType
-            })
-        ) {
-            ItemDetailsScreen(
-                navigateToEditItem = {
-                    navController.navigate("${ItemEditDestination.route}/$it")
-                },
-                navigateBack = { navController.navigateUp() }
-            )
-        }
-
-        // アイテム編集画面
-        composable(
-            route = ItemEditDestination.routeWithArgs,
-            arguments = listOf(navArgument(ItemEditDestination.itemIdArg) {
-                type = NavType.IntType
-            })
-        ) {
-            ItemEditScreen(
-                navigateBack = { navController.popBackStack() },
-                onNavigateUp = { navController.navigateUp() }
+                navigateToItemEntry = {},
+                navigateToItemUpdate = {}
             )
         }
     }

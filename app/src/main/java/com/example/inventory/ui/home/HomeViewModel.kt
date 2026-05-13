@@ -19,9 +19,14 @@ data class HomeUiState(
     val itemList: List<Item> = listOf(),
     val showDatePicker: Boolean = false, // カレンダー表示用のフラグ
     val showInputBox: Boolean = false,   //テキストボックス表示用のフラグ
-    val savedTexts:  List<String> = emptyList()
+    val savedItems: List<ScheduleItem> = emptyList()
 )
 
+data class ScheduleItem(
+    val text: String,
+    val date: String,
+    val time: String
+)
 /**
  * Roomデータベースからすべてのアイテムを取得するためのViewModel
  */
@@ -54,13 +59,22 @@ class HomeViewModel : ViewModel() {
         _uiState.update { it.copy(showInputBox = false) }
     }
 
-    fun addText(text: String) {
+    fun addText(
+        text: String,
+        date: String,
+        time: String
+    ) {
         _uiState.update {
             it.copy(
-                savedTexts = it.savedTexts + text
+                savedItems = it.savedItems + ScheduleItem(
+                    text = text,
+                    date = date,
+                    time = time
+                )
             )
         }
     }
+
     companion object {
         private const val TIMEOUT_MILLIS = 5_000L
     }

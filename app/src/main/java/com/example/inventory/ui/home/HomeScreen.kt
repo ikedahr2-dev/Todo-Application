@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.R
 import com.example.inventory.data.Item
-import com.example.inventory.ui.item.formatedPrice
 import com.example.inventory.ui.navigation.NavigationDestination
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -54,8 +53,15 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.ui.graphics.Color
 import com.example.inventory.ui.theme.md_theme_light_primary
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimeInput
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
@@ -71,10 +77,21 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-    //カレンダーの状態管理
+
     val datePickerState = rememberDatePickerState()
-    var text by remember { mutableStateOf("") }
+    val timePickerState = rememberTimePickerState()
+
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+
+    var selectedDate by remember { mutableStateOf("") }
+    var selectedTime by remember { mutableStateOf("") } //Calendarで選択した日付をここに保存
+
+    var selectedCalendarDate by remember { mutableStateOf("") }
+
+    var showCalendar by remember { mutableStateOf(false)} // カレンダー画面を表示するか
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -82,8 +99,8 @@ fun HomeScreen(
         },
         bottomBar = {
             ViewToggleButton(
-                onListClick = { /* 現在地なので何もしない */ },
-                onCalendarClick = { viewModel.onCalenderClick() }
+                onListClick = { showCalendar = false },
+                onCalendarClick = { showCalendar = true }
             )
         },
         floatingActionButton = {
@@ -107,108 +124,104 @@ fun HomeScreen(
                 }
             }
         },
-    ) { innerPadding ->
-
-        if (uiState.showDatePicker) {
-            DatePickerDialog(
-                onDismissRequest = {
-                    viewModel.onDismissDatePicker()
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            viewModel.onDismissDatePicker()
-                        }
-                    ) {
-                        Text(stringResource(R.string.no_item_OK))
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = {
-                            viewModel.onDismissDatePicker()
-                        }
-                    ) {
-                        Text(stringResource(R.string.no_item_cancel))
-                    }
-                }
-            ) {
-                DatePicker(state = datePickerState)
-            }
-        }
-
-        var text by remember { mutableStateOf("") }
+    ){ innerPadding ->
 
         Box(modifier = Modifier.fillMaxSize()) {
 
-            //保存したテキスト表示
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-            ) {
+            if (showCalendar) {
+                CalendarScreen(
+                    onDateSelected = { date ->
 
+                        //ここで日付受け取る
+                        selectedDate = date
+
+                        //入力ダイアログ開く
+                        viewModel.onAddClick()
+                    }
+                )
+            } else {
                 HomeBody(
                     itemList = uiState.itemList,
                     onItemClick = navigateToItemUpdate,
-                    savedTexts = uiState.savedTexts,
+                    savedItems = uiState.savedItems,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = innerPadding,
+                    contentPadding = innerPadding
                 )
             }
 
-            //入力ボックス
+            //入力ダイアログ
             if (uiState.showInputBox) {
+                ScheduleInputDialog(
+                    onDismiss = { viewModel.onDismissInputBox() },
+                    onSave = { text, date, time ->
+                        viewModel.addText(text, date, time)
+                    },
+                    onSelectDate = { showDatePicker = true },
+                    onSelectTime = { showTimePicker = true },
+                    selectedDate = selectedDate,
+                    selectedTime = selectedTime
+                )
+            }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember {
-                                androidx.compose.foundation.interaction.MutableInteractionSource()
-                            }
-                        ) {
-                            viewModel.onDismissInputBox()
-                        }
-                ) {
+            if (showDatePicker) {
+                DatePickerDialog(
+                    onDismissRequest = { showDatePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val millis = datePickerState.selectedDateMillis
+                            selectedDate = millis?.let {
+                                java.text.SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault())
+                                    .format(java.util.Date(it))
+                            } ?: ""
 
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-
-                        OutlinedTextField(
-                            value = text,
-                            onValueChange = { text = it },
-                            label = { Text(stringResource(R.string.stay_schedule)) },
-                            modifier = Modifier
-                                .fillMaxWidth(0.8f)
-                        )
-
-                        androidx.compose.material3.Button(
-                            onClick = {
-                                viewModel.addText(text)
-                                text = ""
-                                viewModel.onDismissInputBox()
-                            },
-                            modifier = Modifier.padding(top = 8.dp)
-                        ) {
+                            showDatePicker = false
+                        }) {
                             Text(stringResource(R.string.enter))
                         }
                     }
+                ) {
+                    DatePicker(state = datePickerState)
                 }
+            }
+
+            if (showTimePicker) {
+                AlertDialog(
+                    onDismissRequest = { showTimePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            selectedTime = String.format(
+                                "%02d:%02d",
+                                timePickerState.hour,
+                                timePickerState.minute
+                            )
+                            showTimePicker = false
+                        }) {
+                            Text(stringResource(R.string.enter))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showTimePicker = false }) {
+                            Text(stringResource(R.string.no_item_cancel))
+                        }
+                    },
+                    text = {
+                        Column {
+                            TimePicker(state = timePickerState)
+                        }
+                    }
+                )
             }
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeBody(
     itemList: List<Item>,
     onItemClick: (Int) -> Unit,
-    savedTexts: List<String>,
+    savedItems: List<ScheduleItem>,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -248,17 +261,17 @@ private fun HomeBody(
         }
 
         Column(
-            modifier = Modifier.padding(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
             horizontalAlignment = Alignment.Start
         ) {
-            savedTexts.forEach { text ->
+            savedItems.forEach { item ->
                 Text(
-                    text = "・$text",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    fontSize = 25.sp,
-                    textAlign = TextAlign.Start
+                    text = "・${item.date} ${item.time} ${item.text}",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Start,
+                    fontSize = 16.sp
                 )
             }
         }
@@ -268,7 +281,7 @@ private fun HomeBody(
             itemList.filter { it.category == selectedCategory }
         }
 
-        if (itemList.isEmpty() && savedTexts.isEmpty()) {
+        if (itemList.isEmpty() && savedItems.isEmpty()) {
             Text(
                 text = stringResource(R.string.no_item_description),
                 textAlign = TextAlign.Center,
@@ -326,10 +339,6 @@ private fun InventoryItem(
                     style = MaterialTheme.typography.titleLarge,
                 )
                 Spacer(Modifier.weight(1f))
-                Text(
-                    text = item.formatedPrice(),
-                    style = MaterialTheme.typography.titleMedium
-                )
             }
             Text(
                 text = stringResource(R.string.in_stock, item.quantity),
