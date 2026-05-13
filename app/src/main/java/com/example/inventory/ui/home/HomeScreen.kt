@@ -77,26 +77,20 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
-    val datePickerState = rememberDatePickerState()
-    val timePickerState = rememberTimePickerState()
-
+    //ダイアログの表示管理フラグ
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
 
+    //選択された値を保持する変数
     var selectedDate by remember { mutableStateOf("") }
-    var selectedTime by remember { mutableStateOf("") } //Calendarで選択した日付をここに保存
+    var selectedTime by remember { mutableStateOf("") }
 
-    var selectedCalendarDate by remember { mutableStateOf("") }
-
-    var showCalendar by remember { mutableStateOf(false)} // カレンダー画面を表示するか
+    var showCalendar by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-        },
         bottomBar = {
             ViewToggleButton(
                 onListClick = { showCalendar = false },
@@ -104,11 +98,14 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            Column(
-                horizontalAlignment = Alignment.End
-            ) {
+            if (!showCalendar) {
                 FloatingActionButton(
-                    onClick = { viewModel.onAddClick() },
+                    onClick = {
+                        //新規追加前に日付・時間を初期化
+                        selectedDate = ""
+                        selectedTime = ""
+                        viewModel.onAddClick()
+                    },
                     shape = CircleShape,   // 丸
                     containerColor = Color.White,   // 中を白
                     contentColor = md_theme_light_primary,   // アイコン色
@@ -131,11 +128,9 @@ fun HomeScreen(
             if (showCalendar) {
                 CalendarScreen(
                     onDateSelected = { date ->
-
-                        //ここで日付受け取る
+                        //新規追加前に日付・時間を初期化
                         selectedDate = date
-
-                        //入力ダイアログ開く
+                        selectedTime = ""
                         viewModel.onAddClick()
                     }
                 )
@@ -144,6 +139,7 @@ fun HomeScreen(
                     itemList = uiState.itemList,
                     onItemClick = navigateToItemUpdate,
                     savedItems = uiState.savedItems,
+                    viewModel = viewModel,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = innerPadding
                 )
@@ -154,23 +150,36 @@ fun HomeScreen(
                 ScheduleInputDialog(
                     onDismiss = { viewModel.onDismissInputBox() },
                     onSave = { text, date, time ->
-                        viewModel.addText(text, date, time)
+                        //保存ボタン押したときの処理
+                        val editingItem = viewModel.editingItem.value
+                        if (editingItem != null) {
+                            //既存の予定を更新
+                            viewModel.updateItem(editingItem, text, date, time)
+                        } else {
+                            //新しい予定を追加
+                            viewModel.addText(text, date, time)
+                        }
                     },
-                    onSelectDate = { showDatePicker = true },
-                    onSelectTime = { showTimePicker = true },
-                    selectedDate = selectedDate,
-                    selectedTime = selectedTime
+                    onDelete = viewModel.editingItem.value?.let { item ->
+                        { viewModel.deleteItem(item) } //削除ボタン押したらこの予定を削除
+                    },
+                    onSelectDate = { showDatePicker = true }, //日付選択ボタン押したらカレンダーを開く
+                    onSelectTime = { showTimePicker = true }, //時間選択ボタン押したらタイムピッカーを開く
+                    selectedDate = selectedDate, //現在選択されている日付
+                    selectedTime = selectedTime  //現在選択されている時間
                 )
             }
 
             if (showDatePicker) {
+                val datePickerState = rememberDatePickerState() //ここで初期化
+
                 DatePickerDialog(
                     onDismissRequest = { showDatePicker = false },
                     confirmButton = {
                         TextButton(onClick = {
                             val millis = datePickerState.selectedDateMillis
                             selectedDate = millis?.let {
-                                java.text.SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault())
+                                SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault())
                                     .format(java.util.Date(it))
                             } ?: ""
 
@@ -185,6 +194,7 @@ fun HomeScreen(
             }
 
             if (showTimePicker) {
+                val timePickerState = rememberTimePickerState(initialHour = 0, initialMinute = 0) //ここで初期化
                 AlertDialog(
                     onDismissRequest = { showTimePicker = false },
                     confirmButton = {
@@ -201,7 +211,7 @@ fun HomeScreen(
                     },
                     dismissButton = {
                         TextButton(onClick = { showTimePicker = false }) {
-                            Text(stringResource(R.string.no_item_cancel))
+                            Text(stringResource(R.string.cancel))
                         }
                     },
                     text = {
@@ -222,6 +232,7 @@ private fun HomeBody(
     itemList: List<Item>,
     onItemClick: (Int) -> Unit,
     savedItems: List<ScheduleItem>,
+    viewModel: HomeViewModel,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -269,9 +280,12 @@ private fun HomeBody(
             savedItems.forEach { item ->
                 Text(
                     text = "・${item.date} ${item.time} ${item.text}",
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable {
+                            viewModel.onEditSavedItem(item)  //予定を編集用に渡す
+                        },
                     textAlign = TextAlign.Start,
-                    fontSize = 16.sp
+                    fontSize = 23.sp //出力される文字のサイズ
                 )
             }
         }
@@ -291,7 +305,7 @@ private fun HomeBody(
         } else {
             InventoryList(
                 itemList = filteredList,
-                onItemClick = { onItemClick(it.id) },
+                onItemClick = { item -> onItemClick(item.id) },
                 contentPadding = contentPadding,
                 modifier = Modifier.padding(horizontal = dimensionResource(id = R.dimen.padding_small))
             )
