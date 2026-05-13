@@ -44,7 +44,7 @@ fun CalendarScreen(
                 }
             }
         ) {
-            Text(stringResource(R.string.enter))
+            Text(stringResource(R.string.all_stay_schedule))
         }
     }
 }
