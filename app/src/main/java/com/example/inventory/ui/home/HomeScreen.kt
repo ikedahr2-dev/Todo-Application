@@ -279,7 +279,7 @@ private fun HomeBody(
         ) {
             savedItems.forEach { item ->
                 Text(
-                    text = "・${item.date} ${item.time} ${item.text}",
+                    text = "・${item.date}   ${item.time} \n ${item.text}",
                     modifier = Modifier.fillMaxWidth()
                         .clickable {
                             viewModel.onEditSavedItem(item)  //予定を編集用に渡す
