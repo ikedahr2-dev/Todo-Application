@@ -104,9 +104,7 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            Column(
-                horizontalAlignment = Alignment.End
-            ) {
+            if (!showCalendar) {
                 FloatingActionButton(
                     onClick = { viewModel.onAddClick() },
                     shape = CircleShape,   // 丸
@@ -144,6 +142,7 @@ fun HomeScreen(
                     itemList = uiState.itemList,
                     onItemClick = navigateToItemUpdate,
                     savedItems = uiState.savedItems,
+                    viewModel = viewModel,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = innerPadding
                 )
@@ -154,12 +153,23 @@ fun HomeScreen(
                 ScheduleInputDialog(
                     onDismiss = { viewModel.onDismissInputBox() },
                     onSave = { text, date, time ->
-                        viewModel.addText(text, date, time)
+                        //保存ボタン押したときの処理
+                        val editingItem = viewModel.editingItem.value
+                        if (editingItem != null) {
+                            //既存の予定を更新
+                            viewModel.updateItem(editingItem, text, date, time)
+                        } else {
+                            //新しい予定を追加
+                            viewModel.addText(text, date, time)
+                        }
                     },
-                    onSelectDate = { showDatePicker = true },
-                    onSelectTime = { showTimePicker = true },
-                    selectedDate = selectedDate,
-                    selectedTime = selectedTime
+                    onDelete = viewModel.editingItem.value?.let { item ->
+                        { viewModel.deleteItem(item) } //削除ボタン押したらこの予定を削除
+                    },
+                    onSelectDate = { showDatePicker = true }, //日付選択ボタン押したらカレンダーを開く
+                    onSelectTime = { showTimePicker = true }, //時間選択ボタン押したらタイムピッカーを開く
+                    selectedDate = selectedDate, //現在選択されている日付
+                    selectedTime = selectedTime  //現在選択されている時間
                 )
             }
 
@@ -201,7 +211,7 @@ fun HomeScreen(
                     },
                     dismissButton = {
                         TextButton(onClick = { showTimePicker = false }) {
-                            Text(stringResource(R.string.no_item_cancel))
+                            Text(stringResource(R.string.cancel))
                         }
                     },
                     text = {
@@ -222,6 +232,7 @@ private fun HomeBody(
     itemList: List<Item>,
     onItemClick: (Int) -> Unit,
     savedItems: List<ScheduleItem>,
+    viewModel: HomeViewModel,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -269,9 +280,12 @@ private fun HomeBody(
             savedItems.forEach { item ->
                 Text(
                     text = "・${item.date} ${item.time} ${item.text}",
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable {
+                            viewModel.onEditSavedItem(item)  //予定を編集用に渡す
+                        },
                     textAlign = TextAlign.Start,
-                    fontSize = 16.sp
+                    fontSize = 23.sp //出力される文字のサイズ
                 )
             }
         }
@@ -291,7 +305,7 @@ private fun HomeBody(
         } else {
             InventoryList(
                 itemList = filteredList,
-                onItemClick = { onItemClick(it.id) },
+                onItemClick = { item -> onItemClick(item.id) },
                 contentPadding = contentPadding,
                 modifier = Modifier.padding(horizontal = dimensionResource(id = R.dimen.padding_small))
             )

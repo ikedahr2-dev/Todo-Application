@@ -28,7 +28,7 @@ data class Item(
     val id: Int = 0,
     val text: String,
     val name: String,
-    val price: Double,
+    //val price: Double,
     val quantity: Int,
     val data: Long = System.currentTimeMillis(), //日付の更新
     val category: String = "すべて"
