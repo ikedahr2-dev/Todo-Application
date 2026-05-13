@@ -77,26 +77,20 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
-    val datePickerState = rememberDatePickerState()
-    val timePickerState = rememberTimePickerState()
-
+    //ダイアログの表示管理フラグ
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
 
+    //選択された値を保持する変数
     var selectedDate by remember { mutableStateOf("") }
-    var selectedTime by remember { mutableStateOf("") } //Calendarで選択した日付をここに保存
+    var selectedTime by remember { mutableStateOf("") }
 
-    var selectedCalendarDate by remember { mutableStateOf("") }
-
-    var showCalendar by remember { mutableStateOf(false)} // カレンダー画面を表示するか
+    var showCalendar by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-        },
         bottomBar = {
             ViewToggleButton(
                 onListClick = { showCalendar = false },
@@ -106,7 +100,12 @@ fun HomeScreen(
         floatingActionButton = {
             if (!showCalendar) {
                 FloatingActionButton(
-                    onClick = { viewModel.onAddClick() },
+                    onClick = {
+                        //新規追加前に日付・時間を初期化
+                        selectedDate = ""
+                        selectedTime = ""
+                        viewModel.onAddClick()
+                    },
                     shape = CircleShape,   // 丸
                     containerColor = Color.White,   // 中を白
                     contentColor = md_theme_light_primary,   // アイコン色
@@ -129,11 +128,9 @@ fun HomeScreen(
             if (showCalendar) {
                 CalendarScreen(
                     onDateSelected = { date ->
-
-                        //ここで日付受け取る
+                        //新規追加前に日付・時間を初期化
                         selectedDate = date
-
-                        //入力ダイアログ開く
+                        selectedTime = ""
                         viewModel.onAddClick()
                     }
                 )
@@ -174,13 +171,15 @@ fun HomeScreen(
             }
 
             if (showDatePicker) {
+                val datePickerState = rememberDatePickerState() //ここで初期化
+
                 DatePickerDialog(
                     onDismissRequest = { showDatePicker = false },
                     confirmButton = {
                         TextButton(onClick = {
                             val millis = datePickerState.selectedDateMillis
                             selectedDate = millis?.let {
-                                java.text.SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault())
+                                SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault())
                                     .format(java.util.Date(it))
                             } ?: ""
 
@@ -195,6 +194,7 @@ fun HomeScreen(
             }
 
             if (showTimePicker) {
+                val timePickerState = rememberTimePickerState(initialHour = 0, initialMinute = 0) //ここで初期化
                 AlertDialog(
                     onDismissRequest = { showTimePicker = false },
                     confirmButton = {
