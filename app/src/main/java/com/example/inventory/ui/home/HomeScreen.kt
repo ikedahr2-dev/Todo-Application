@@ -1,13 +1,14 @@
 package com.example.inventory.ui.home
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
@@ -16,11 +17,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.R
 import com.example.inventory.data.Schedule // Schedule型を使用
@@ -115,6 +116,7 @@ fun HomeScreen(
                         } else {
                             viewModel.addText(text, date, time)
                         }
+                        viewModel.onDismissInputBox()
                     },
                     onDelete = viewModel.editingItem.value?.let { item ->
                         { viewModel.deleteItem(item) }
@@ -122,7 +124,7 @@ fun HomeScreen(
                     onSelectDate = { showDatePicker = true },
                     onSelectTime = { showTimePicker = true },
                     selectedDate = selectedDate,
-                    selectedTime = selectedTime
+                    selectedTime = selectedTime,
                 )
             }
 
@@ -174,7 +176,11 @@ fun HomeScreen(
                         Column {
                             TimePicker(state = timePickerState)
                         }
-                    }
+                    },
+                    properties = DialogProperties(
+                        dismissOnBackPress = false,
+                        dismissOnClickOutside = false
+                    )
                 )
             }
         }
@@ -244,17 +250,31 @@ private fun HomeBody(
             } else {
                 // DBから取得した予定を表示
                 filteredList.forEach { schedule ->
-                    Text(
-                        text = "・${schedule.date} ${schedule.time} ${schedule.text}",
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                viewModel.onEditSavedItem(schedule)
-                            }
-                            .padding(vertical = 4.dp),
-                        textAlign = TextAlign.Start,
-                        fontSize = 23.sp
-                    )
+                            .border(
+                                width = 1.dp,
+                                color = Color.Gray,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+                            .clickable { viewModel.onEditSavedItem(schedule) }
+                            .padding(12.dp) // 内側の余白
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "${schedule.date}                             ${schedule.time}\n${schedule.text}",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.onEditSavedItem(schedule)
+                                }
+                                .padding(vertical = 4.dp),
+                            textAlign = TextAlign.Start,
+                            fontSize = 23.sp
+                        )
+                    }
                 }
             }
         }

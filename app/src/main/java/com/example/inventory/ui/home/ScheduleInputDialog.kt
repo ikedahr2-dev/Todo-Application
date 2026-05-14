@@ -2,18 +2,13 @@ package com.example.inventory.ui.home
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.inventory.R
 
@@ -25,7 +20,8 @@ fun ScheduleInputDialog(
     onSelectDate: () -> Unit,
     onSelectTime: () -> Unit,
     selectedDate: String,
-    selectedTime: String
+    selectedTime: String,
+    //dialogProperties: Any
 ) {
 
     var text by remember {
@@ -35,7 +31,7 @@ fun ScheduleInputDialog(
     val isFormValid = text.isNotBlank() && selectedDate.isNotBlank() && selectedTime.isNotBlank() //入力チェック
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { },
         confirmButton = {
             Button(
                 onClick = {
