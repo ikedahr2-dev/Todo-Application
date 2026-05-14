@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -201,7 +202,9 @@ private fun HomeBody(
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.padding(contentPadding),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(contentPadding),
     ) {
 //---------- ナビゲーションバー ----------//
         LazyRow(
@@ -227,31 +230,38 @@ private fun HomeBody(
         }
 
         // フィルタリング処理
-        val filteredList = if (selectedCategory == "すべて") {
+        val filteredList = (if (selectedCategory == "すべて") {
             scheduleList
         } else {
             scheduleList.filter { it.category == selectedCategory }
-        }
+        }).sortedWith(
+            compareBy<Schedule> { it.date }
+                .thenBy { it.time }
+        )
 
         // スケジュール表示エリア
-        Column(
+        LazyColumn(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding(8.dp),
-            horizontalAlignment = Alignment.Start
+            contentPadding = PaddingValues(bottom = 120.dp)
         ) {
             if (filteredList.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.no_item_description),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
-                )
+                item {
+                    Text(
+                        text = stringResource(R.string.no_item_description),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(top = 32.dp),
+                    )
+                }
             } else {
 
 //---------- リスト表示 ----------//
 
-                filteredList.forEach { schedule ->
+                items(filteredList) { schedule ->
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -261,47 +271,41 @@ private fun HomeBody(
                                 color = md_theme_light_primary,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .background(Color(0xFFF0F8FF), RoundedCornerShape(8.dp))
-                            .clickable { viewModel.onEditSavedItem(schedule) }
-                            .padding(12.dp) // 内側の余白
-                            .padding(vertical = 4.dp)
+                            .background(
+                                Color.White,
+                                RoundedCornerShape(8.dp)
+                            )
+                            .clickable {
+                                viewModel.onEditSavedItem(schedule)
+                            }
+                            .padding(12.dp)
                     ) {
-                        //text
-                        Text(
-                            text = "${schedule.text}",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.onEditSavedItem(schedule)
-                                }
-                                .padding(top = 1.dp),
-                            textAlign = TextAlign.Left,
-                            fontSize = 28.sp
-                        )
-                        //time
-                        Text(
-                            text = "${schedule.time}",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.onEditSavedItem(schedule)
-                                }
-                                .padding(top = 1.dp),
-                            textAlign = TextAlign.Right,
-                            fontSize = 26.sp
-                        )
-                        //date
-                        Text(
-                            text = "\n${schedule.date}",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.onEditSavedItem(schedule)
-                                }
-                                .padding(top = 15.dp),
-                            textAlign = TextAlign.Left,
-                            fontSize = 15.sp
-                        )
+
+                        Column {
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+
+                                Text(
+                                    text = schedule.text,
+                                    fontSize = 28.sp
+                                )
+
+                                Text(
+                                    text = schedule.time,
+                                    fontSize = 24.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = schedule.date,
+                                fontSize = 15.sp
+                            )
+                        }
                     }
                 }
             }
