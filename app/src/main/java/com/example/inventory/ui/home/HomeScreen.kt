@@ -203,7 +203,7 @@ private fun HomeBody(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.padding(contentPadding),
     ) {
-        // カテゴリナビゲーションバー
+//---------- ナビゲーションバー ----------//
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -248,17 +248,20 @@ private fun HomeBody(
                     modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
                 )
             } else {
-                // DBから取得した予定を表示
+
+//---------- リスト表示 ----------//
+
                 filteredList.forEach { schedule ->
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(vertical = 8.dp)
                             .border(
                                 width = 1.dp,
-                                color = Color.Gray,
+                                color = md_theme_light_primary,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+                            .background(Color(0xFFF0F8FF), RoundedCornerShape(8.dp))
                             .clickable { viewModel.onEditSavedItem(schedule) }
                             .padding(12.dp) // 内側の余白
                             .padding(vertical = 4.dp)
