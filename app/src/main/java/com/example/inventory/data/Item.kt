@@ -18,20 +18,17 @@ package com.example.inventory.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import java.sql.Time
 
 /**
  * Entity data class represents a single row in the database.
  */
-@Entity(tableName = "task")
-data class Task(
+@Entity(tableName = "items")
+data class Item(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
     val text: String,
-    val time: String,
-    val date: String,
-    //↑格納予定
-
+    val name: String,
+    //val price: Double,
     val quantity: Int,
     val data: Long = System.currentTimeMillis(), //日付の更新
     val category: String = "すべて"
