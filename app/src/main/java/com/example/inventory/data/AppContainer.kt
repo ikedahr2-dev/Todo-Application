@@ -18,21 +18,15 @@ package com.example.inventory.data
 
 import android.content.Context
 
-/**
- * App container for Dependency injection.
- */
+
 interface AppContainer {
-    val itemsRepository: ItemsRepository
+    val schedulesRepository: SchedulesRepository
 }
 
-/**
- * [AppContainer] implementation that provides instance of [OfflineItemsRepository]
- */
 class AppDataContainer(private val context: Context) : AppContainer {
-    /**
-     * Implementation for [ItemsRepository]
-     */
-    override val itemsRepository: ItemsRepository by lazy {
-        OfflineItemsRepository(InventoryDatabase.getDatabase(context).itemDao())
+
+    //-- Daoを呼んでいつでも使える状態に --//
+    override val schedulesRepository: SchedulesRepository by lazy {
+        OfflineSchedulesRepository(InventoryDatabase.getDatabase(context).scheduleDao())
     }
 }

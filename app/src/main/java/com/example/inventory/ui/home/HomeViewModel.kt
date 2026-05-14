@@ -1,111 +1,77 @@
-/*
- * Copyright (C) 2023 The Android Open Source Project
- * ... (ライセンス表記は省略可)
- */
-
 package com.example.inventory.ui.home
 
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
-import com.example.inventory.data.Item
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import androidx.lifecycle.viewModelScope
+import com.example.inventory.data.Schedule
+import com.example.inventory.data.SchedulesRepository
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 
 data class HomeUiState(
-    val itemList: List<Item> = listOf(),              //アイテムリスト
-    val showDatePicker: Boolean = false,              //カレンダー表示フラグ
-    val showInputBox: Boolean = false,                //入力ダイアログ表示フラグ
-    val savedItems: List<ScheduleItem> = emptyList(), //保存済みの予定
-    val editingItem: ScheduleItem? = null             //現在編集中の予定
+    val scheduleList: List<Schedule> = listOf(),
+    val showDatePicker: Boolean = false,
+    val showInputBox: Boolean = false
 )
 
-data class ScheduleItem(
-    val id: Int,
-    val text: String,
-    val date: String,
-    val time: String
-)
+class HomeViewModel(
+    private val schedulesRepository: SchedulesRepository
+) : ViewModel() {
 
-class HomeViewModel : ViewModel() {
-
-    //UIの状態を管理するMutableStateFlow
+    // 1. 【ここがキモ】ダイアログなどの「UI状態」を管理する
     private val _uiState = MutableStateFlow(HomeUiState())
 
-    //HomeScreenから参照される読み取り専用のStateFlow
-    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    // 2. 【ここがキモ】DBのデータとUI状態を「ガッチャンコ」して HomeScreen に流す
+    val uiState: StateFlow<HomeUiState> = schedulesRepository.getAllSchedulesStream()
+        .combine(_uiState) { dbList, currentUiState ->
+            currentUiState.copy(scheduleList = dbList)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(TIMEOUT_MILLIS),
+            initialValue = HomeUiState()
+        )
 
-    private var _editingItem = mutableStateOf<ScheduleItem?>(null)
-    val editingItem: State<ScheduleItem?> = _editingItem
+    private var _editingItem = mutableStateOf<Schedule?>(null)
+    val editingItem: State<Schedule?> = _editingItem
 
-    //新しい予定ID用のカウンター
-    private var nextId = 0
-
-    //カレンダーを開く
-    fun onCalenderClick() {
-        _uiState.update { it.copy(showDatePicker = true) }
-    }
-
-    //新規追加用ダイアログを開く
     fun onAddClick() {
-        _editingItem.value = null          //編集中アイテムはクリア
-        _uiState.update { it.copy(showInputBox = true) }
+        _editingItem.value = null
+        _uiState.update { it.copy(showInputBox = true) } // ちゃんと _uiState を更新！
     }
 
-    //入力ダイアログを閉じる
     fun onDismissInputBox() {
         _editingItem.value = null
         _uiState.update { it.copy(showInputBox = false) }
     }
 
-    //カレンダーを閉じる
-    fun onDismissDatePicker() {
-        _uiState.update { it.copy(showDatePicker = false) }
-    }
-
-    //新規追加
     fun addText(text: String, date: String, time: String) {
-        val newItem = ScheduleItem(id = nextId++, text = text, date = date, time = time)
-        _uiState.update { state ->
-            state.copy(
-                savedItems = state.savedItems + newItem,
-                showInputBox = false      //追加後はダイアログを閉じる
-            )
+        viewModelScope.launch {
+            val newSchedule = Schedule(text = text, date = date, time = time)
+            schedulesRepository.insertSchedule(newSchedule)
+            onDismissInputBox()
         }
     }
 
-    //編集・削除
-    //保存済みアイテムをクリック→編集対象にセットし、ダイアログ表示するとこ
-    fun onEditSavedItem(item: ScheduleItem) {
-        _editingItem.value = item
+    fun onEditSavedItem(schedule: Schedule) {
+        _editingItem.value = schedule
         _uiState.update { it.copy(showInputBox = true) }
     }
 
-    //編集した予定を保存
-    fun updateItem(item: ScheduleItem, newText: String, newDate: String, newTime: String) {
-        _uiState.update { state ->
-            state.copy(
-                savedItems = state.savedItems.map {
-                    if (it.id == item.id) it.copy(text = newText, date = newDate, time = newTime)
-                    else it
-                },
-                showInputBox = false      //保存後はダイアログを閉じる
-            )
+    fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String) {
+        viewModelScope.launch {
+            val updatedSchedule = schedule.copy(text = newText, date = newDate, time = newTime)
+            schedulesRepository.updateSchedule(updatedSchedule)
+            onDismissInputBox()
         }
-        _editingItem.value = null
     }
 
-    //保存済みの予定を削除
-    fun deleteItem(item: ScheduleItem) {
-        _uiState.update { state ->
-            state.copy(
-                savedItems = state.savedItems.filter { it.id != item.id },
-                showInputBox = false      // 削除後はダイアログを閉じる
-            )
+    fun deleteItem(schedule: Schedule) {
+        viewModelScope.launch {
+            schedulesRepository.deleteSchedule(schedule)
+            onDismissInputBox()
         }
-        _editingItem.value = null
     }
 
     companion object {

@@ -1,67 +1,33 @@
 package com.example.inventory.ui.home
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.R
-import com.example.inventory.data.Item
+import com.example.inventory.data.Schedule // Schedule型を使用
+import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.rememberTimePickerState
-import androidx.compose.ui.graphics.Color
 import com.example.inventory.ui.theme.md_theme_light_primary
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TimeInput
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
@@ -74,19 +40,16 @@ fun HomeScreen(
     navigateToItemEntry: () -> Unit,
     navigateToItemUpdate: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: HomeViewModel = viewModel()
+    // 【修正】Factoryを渡してDBリポジトリを使えるようにする
+    viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
-    //ダイアログの表示管理フラグ
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
-
-    //選択された値を保持する変数
     var selectedDate by remember { mutableStateOf("") }
     var selectedTime by remember { mutableStateOf("") }
-
     var showCalendar by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -101,15 +64,14 @@ fun HomeScreen(
             if (!showCalendar) {
                 FloatingActionButton(
                     onClick = {
-                        //新規追加前に日付・時間を初期化
                         selectedDate = ""
                         selectedTime = ""
                         viewModel.onAddClick()
                     },
-                    shape = CircleShape,   // 丸
-                    containerColor = Color.White,   // 中を白
-                    contentColor = md_theme_light_primary,   // アイコン色
-                    modifier = Modifier   // 位置・サイズ・枠
+                    shape = CircleShape,
+                    containerColor = Color.White,
+                    contentColor = md_theme_light_primary,
+                    modifier = Modifier
                         .offset(y = (-15).dp)
                         .size(75.dp)
                         .border(BorderStroke(1.5.dp, md_theme_light_primary), CircleShape)
@@ -121,58 +83,52 @@ fun HomeScreen(
                 }
             }
         },
-    ){ innerPadding ->
-
+    ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
-
             if (showCalendar) {
                 CalendarScreen(
                     onDateSelected = { date ->
-                        //新規追加前に日付・時間を初期化
                         selectedDate = date
                         selectedTime = ""
                         viewModel.onAddClick()
                     }
                 )
             } else {
+                // 【修正】scheduleListのみを渡すように変更
                 HomeBody(
-                    itemList = uiState.itemList,
+                    scheduleList = uiState.scheduleList,
                     onItemClick = navigateToItemUpdate,
-                    savedItems = uiState.savedItems,
                     viewModel = viewModel,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = innerPadding
                 )
             }
 
-            //入力ダイアログ
+            // 【修正】入力ダイアログ（editingItemもSchedule型になっている前提）
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
                     onDismiss = { viewModel.onDismissInputBox() },
                     onSave = { text, date, time ->
-                        //保存ボタン押したときの処理
                         val editingItem = viewModel.editingItem.value
                         if (editingItem != null) {
-                            //既存の予定を更新
                             viewModel.updateItem(editingItem, text, date, time)
                         } else {
-                            //新しい予定を追加
                             viewModel.addText(text, date, time)
                         }
                     },
                     onDelete = viewModel.editingItem.value?.let { item ->
-                        { viewModel.deleteItem(item) } //削除ボタン押したらこの予定を削除
+                        { viewModel.deleteItem(item) }
                     },
-                    onSelectDate = { showDatePicker = true }, //日付選択ボタン押したらカレンダーを開く
-                    onSelectTime = { showTimePicker = true }, //時間選択ボタン押したらタイムピッカーを開く
-                    selectedDate = selectedDate, //現在選択されている日付
-                    selectedTime = selectedTime  //現在選択されている時間
+                    onSelectDate = { showDatePicker = true },
+                    onSelectTime = { showTimePicker = true },
+                    selectedDate = selectedDate,
+                    selectedTime = selectedTime
                 )
             }
 
+            // DatePicker
             if (showDatePicker) {
-                val datePickerState = rememberDatePickerState() //ここで初期化
-
+                val datePickerState = rememberDatePickerState()
                 DatePickerDialog(
                     onDismissRequest = { showDatePicker = false },
                     confirmButton = {
@@ -182,7 +138,6 @@ fun HomeScreen(
                                 SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault())
                                     .format(java.util.Date(it))
                             } ?: ""
-
                             showDatePicker = false
                         }) {
                             Text(stringResource(R.string.enter))
@@ -193,8 +148,9 @@ fun HomeScreen(
                 }
             }
 
+            // TimePicker
             if (showTimePicker) {
-                val timePickerState = rememberTimePickerState(initialHour = 0, initialMinute = 0) //ここで初期化
+                val timePickerState = rememberTimePickerState(initialHour = 0, initialMinute = 0)
                 AlertDialog(
                     onDismissRequest = { showTimePicker = false },
                     confirmButton = {
@@ -225,41 +181,34 @@ fun HomeScreen(
     }
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeBody(
-    itemList: List<Item>,
+    scheduleList: List<Schedule>, // 【重要】Schedule型のみに統合
     onItemClick: (Int) -> Unit,
-    savedItems: List<ScheduleItem>,
     viewModel: HomeViewModel,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
-
     var selectedCategory by remember { mutableStateOf("すべて") }
-    // この先増えるなら格納先作って呼び出し、何個かで固定なら直で書けばいいかなって感じ^-^
     val categories = listOf("すべて", "仕事", "プライベート", "その他")
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.padding(contentPadding), // 余白
+        modifier = modifier.padding(contentPadding),
     ) {
-
-        // ----- ナビゲーションバー ----- //
-
-        androidx.compose.foundation.lazy.LazyRow(
+        // カテゴリナビゲーションバー
+        LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             modifier = Modifier.fillMaxWidth()
-        )
-        {
+        ) {
             items(categories) { category ->
                 FilterChip(
-                    selected = (category == selectedCategory), // 選択
+                    selected = (category == selectedCategory),
                     onClick = { selectedCategory = category },
                     label = { Text(category) },
-                    shape = CircleShape,   // 形
+                    shape = CircleShape,
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = md_theme_light_primary,
                         selectedLabelColor = Color.White
@@ -271,99 +220,54 @@ private fun HomeBody(
             }
         }
 
+        // フィルタリング処理
+        val filteredList = if (selectedCategory == "すべて") {
+            scheduleList
+        } else {
+            scheduleList.filter { it.category == selectedCategory }
+        }
+
+        // スケジュール表示エリア
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp),
             horizontalAlignment = Alignment.Start
         ) {
-            savedItems.forEach { item ->
+            if (filteredList.isEmpty()) {
                 Text(
-                    text = "・${item.date} ${item.time} ${item.text}",
-                    modifier = Modifier.fillMaxWidth()
-                        .clickable {
-                            viewModel.onEditSavedItem(item)  //予定を編集用に渡す
-                        },
-                    textAlign = TextAlign.Start,
-                    fontSize = 23.sp //出力される文字のサイズ
-                )
-            }
-        }
-        val filteredList = if (selectedCategory == "すべて") {
-            itemList
-        } else {
-            itemList.filter { it.category == selectedCategory }
-        }
-
-        if (itemList.isEmpty() && savedItems.isEmpty()) {
-            Text(
-                text = stringResource(R.string.no_item_description),
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(contentPadding),
-            )
-        } else {
-            InventoryList(
-                itemList = filteredList,
-                onItemClick = { item -> onItemClick(item.id) },
-                contentPadding = contentPadding,
-                modifier = Modifier.padding(horizontal = dimensionResource(id = R.dimen.padding_small))
-            )
-        }
-    }
-}
-
-@Composable
-private fun InventoryList(
-    itemList: List<Item>,
-    onItemClick: (Item) -> Unit,
-    contentPadding: PaddingValues,
-    modifier: Modifier = Modifier
-) {
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = contentPadding
-    ) {
-        items(items = itemList, key = { it.id }) { item ->
-            InventoryItem(item = item,
-                modifier = Modifier
-                    .padding(dimensionResource(id = R.dimen.padding_small))
-                    .clickable { onItemClick(item) })
-        }
-    }
-}
-
-@Composable
-private fun InventoryItem(
-    item: Item, modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(dimensionResource(id = R.dimen.padding_large)),
-            verticalArrangement = Arrangement.spacedBy(dimensionResource(id = R.dimen.padding_small))
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = item.text,
+                    text = stringResource(R.string.no_item_description),
+                    textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
                 )
-                Spacer(Modifier.weight(1f))
+            } else {
+                // DBから取得した予定を表示
+                filteredList.forEach { schedule ->
+                    Text(
+                        text = "・${schedule.date} ${schedule.time} ${schedule.text}",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.onEditSavedItem(schedule)
+                            }
+                            .padding(vertical = 4.dp),
+                        textAlign = TextAlign.Start,
+                        fontSize = 23.sp
+                    )
+                }
             }
         }
     }
 }
+
 @Composable
 fun ViewToggleButton(
     onListClick: () -> Unit,
     onCalendarClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    androidx.compose.material3.BottomAppBar(
+    BottomAppBar(
         containerColor = MaterialTheme.colorScheme.surface,
         modifier = modifier
     ) {
@@ -373,14 +277,14 @@ fun ViewToggleButton(
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            androidx.compose.material3.Button(
+            Button(
                 onClick = onListClick,
                 modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.small
             ) {
                 Text("リスト")
             }
-            androidx.compose.material3.Button(
+            Button(
                 onClick = onCalendarClick,
                 modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.small

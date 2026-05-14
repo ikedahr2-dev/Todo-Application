@@ -31,7 +31,14 @@ import com.example.inventory.ui.home.HomeViewModel
 object AppViewModelProvider {
     val Factory = viewModelFactory {
         initializer {
-            HomeViewModel()
+            // HomeViewModelにリポジトリを叩き込む！
+            HomeViewModel(inventoryApplication().container.schedulesRepository)
         }
     }
 }
+
+/**
+ * Extension function to get the InventoryApplication object.
+ */
+fun CreationExtras.inventoryApplication(): InventoryApplication =
+    (this[AndroidViewModelFactory.APPLICATION_KEY] as InventoryApplication)
