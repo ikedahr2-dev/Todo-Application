@@ -257,7 +257,7 @@ private fun HomeBody(
                             .fillMaxWidth()
                             .padding(vertical = 8.dp)
                             .border(
-                                width = 1.dp,
+                                width = 1.5.dp,
                                 color = md_theme_light_primary,
                                 shape = RoundedCornerShape(8.dp)
                             )
@@ -266,16 +266,41 @@ private fun HomeBody(
                             .padding(12.dp) // 内側の余白
                             .padding(vertical = 4.dp)
                     ) {
+                        //text
                         Text(
-                            text = "${schedule.date}                             ${schedule.time}\n${schedule.text}",
+                            text = "${schedule.text}",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
                                     viewModel.onEditSavedItem(schedule)
                                 }
-                                .padding(vertical = 4.dp),
-                            textAlign = TextAlign.Start,
-                            fontSize = 23.sp
+                                .padding(top = 1.dp),
+                            textAlign = TextAlign.Left,
+                            fontSize = 28.sp
+                        )
+                        //time
+                        Text(
+                            text = "${schedule.time}",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.onEditSavedItem(schedule)
+                                }
+                                .padding(top = 1.dp),
+                            textAlign = TextAlign.Right,
+                            fontSize = 26.sp
+                        )
+                        //date
+                        Text(
+                            text = "\n${schedule.date}",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.onEditSavedItem(schedule)
+                                }
+                                .padding(top = 15.dp),
+                            textAlign = TextAlign.Left,
+                            fontSize = 15.sp
                         )
                     }
                 }
