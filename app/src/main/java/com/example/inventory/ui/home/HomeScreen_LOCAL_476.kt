@@ -14,8 +14,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -29,11 +31,6 @@ import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.md_theme_light_primary
 import java.text.SimpleDateFormat
 import java.util.Locale
-// アラームに使う
-import androidx.compose.ui.platform.LocalContext
-import com.example.inventory.scheduleTodoAlarm
-import com.example.inventory.convertDateTimeToMillis
-
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
@@ -58,7 +55,6 @@ fun HomeScreen(
     var selectedDate by remember { mutableStateOf(today) }
     var selectedTime by remember { mutableStateOf("") }
     var showCalendar by remember { mutableStateOf(false) }
-    val context = LocalContext.current //アラーム
 
     Scaffold(
        bottomBar = {
@@ -104,6 +100,8 @@ fun HomeScreen(
                             selectedDate = date // 日付が更新されたら保存する
                         },
                         onCalendarItemClick = { schedule ->
+                            selectedDate = schedule.date
+                            selectedTime = schedule.time
                             viewModel.onEditSavedItem(schedule)
                         }
                     )
@@ -113,32 +111,27 @@ fun HomeScreen(
                     scheduleList = uiState.scheduleList,
                     onItemClick = navigateToItemUpdate,
                     viewModel = viewModel,
-                    modifier = Modifier.padding(innerPadding),
-                    contentPadding = PaddingValues(0.dp)
+                    onEditItem = { schedule ->        //編集用のコールバック
+                        selectedDate = schedule.date  //タップした予定の日付をセット
+                        selectedTime = schedule.time  //タップした予定の時間をセット
+                        viewModel.onEditSavedItem(schedule)
+                    },
+                    modifier = Modifier.padding(innerPadding)
                 )
             }
 
             // 【修正】入力ダイアログ（editingItemもSchedule型になっている前提）
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
+                    initialText = uiState.editingItem?.text ?: "",
                     onDismiss = { viewModel.onDismissInputBox() },
                     onSave = { text, date, time ->
-                        val editingItem = viewModel.editingItem.value
-                        if (editingItem != null) {
-                            viewModel.updateItem(editingItem, text, date, time)
+                        val item = uiState.editingItem
+                        if (item != null) {
+                            viewModel.updateItem(item, text, date, time)
                         } else {
                             viewModel.addText(text, date, time)
                         }
-                        //アラーム
-                        val taskTimeMillis = convertDateTimeToMillis(selectedDate, selectedTime)
-                        if (taskTimeMillis != null) {
-                            scheduleTodoAlarm(
-                                context = context,
-                                taskTitle = text,
-                                taskTimeMillis = taskTimeMillis
-                            )
-                        }//アラームここまで
-                        viewModel.onDismissInputBox()
                     },
                     onDelete = viewModel.editingItem.value?.let { item ->
                         { viewModel.deleteItem(item) }
@@ -215,6 +208,7 @@ private fun HomeBody(
     scheduleList: List<Schedule>, // 【重要】Schedule型のみに統合
     onItemClick: (Int) -> Unit,
     viewModel: HomeViewModel,
+    onEditItem: (Schedule) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -294,8 +288,7 @@ private fun HomeBody(
                                 RoundedCornerShape(8.dp)
                             )
                             .clickable {
-                                viewModel.onEditSavedItem(schedule)
-                            }
+                                onEditItem(schedule)                            }
                             .padding(12.dp)
                     ) {
 

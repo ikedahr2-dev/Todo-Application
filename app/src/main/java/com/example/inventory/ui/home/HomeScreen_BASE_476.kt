@@ -14,8 +14,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -29,11 +31,6 @@ import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.md_theme_light_primary
 import java.text.SimpleDateFormat
 import java.util.Locale
-// アラームに使う
-import androidx.compose.ui.platform.LocalContext
-import com.example.inventory.scheduleTodoAlarm
-import com.example.inventory.convertDateTimeToMillis
-
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
@@ -58,7 +55,6 @@ fun HomeScreen(
     var selectedDate by remember { mutableStateOf(today) }
     var selectedTime by remember { mutableStateOf("") }
     var showCalendar by remember { mutableStateOf(false) }
-    val context = LocalContext.current //アラーム
 
     Scaffold(
        bottomBar = {
@@ -129,15 +125,6 @@ fun HomeScreen(
                         } else {
                             viewModel.addText(text, date, time)
                         }
-                        //アラーム
-                        val taskTimeMillis = convertDateTimeToMillis(selectedDate, selectedTime)
-                        if (taskTimeMillis != null) {
-                            scheduleTodoAlarm(
-                                context = context,
-                                taskTitle = text,
-                                taskTimeMillis = taskTimeMillis
-                            )
-                        }//アラームここまで
                         viewModel.onDismissInputBox()
                     },
                     onDelete = viewModel.editingItem.value?.let { item ->
