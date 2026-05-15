@@ -21,14 +21,14 @@ fun ScheduleInputDialog(
     onSelectTime: () -> Unit,
     selectedDate: String,
     selectedTime: String,
-    //dialogProperties: Any
+    initialText: String = ""
 ) {
 
-    var text by remember {
-        mutableStateOf("")
+    var text by remember(initialText) {
+        mutableStateOf(initialText)
     }
 
-    val isFormValid = text.isNotBlank() && selectedDate.isNotBlank() && selectedTime.isNotBlank() //入力チェック
+    val isFormValid = text.isNotBlank() && selectedDate.isNotBlank() && selectedTime.isNotBlank()
 
     AlertDialog(
         onDismissRequest = { },
