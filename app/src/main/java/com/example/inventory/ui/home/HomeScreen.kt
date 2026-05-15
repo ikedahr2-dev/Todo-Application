@@ -57,9 +57,7 @@ fun HomeScreen(
     var showCalendar by remember { mutableStateOf(false) }
 
     Scaffold(
-        // ここから下は今のままでOK！
-        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        bottomBar = {
+       bottomBar = {
             ViewToggleButton(
                 onListClick = {
                     showCalendar = false
@@ -93,24 +91,26 @@ fun HomeScreen(
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
             if (showCalendar) {
-                CalendarScreen(
-                    scheduleList = uiState.scheduleList, // データを渡す
-                    selectedDate = selectedDate,         // 選ばれている日を渡す
-                    onDateSelected = { date ->
-                        selectedDate = date // 日付が更新されたら保存する
-                    },
-                    onCalendarItemClick = { schedule ->
-                        viewModel.onEditSavedItem(schedule)
-                    }
-                )
-            } else {
+                Box(modifier = Modifier.padding(innerPadding)) {
 
+                    CalendarScreen(
+                        scheduleList = uiState.scheduleList, // データを渡す
+                        selectedDate = selectedDate,         // 選ばれている日を渡す
+                        onDateSelected = { date ->
+                            selectedDate = date // 日付が更新されたら保存する
+                        },
+                        onCalendarItemClick = { schedule ->
+                            viewModel.onEditSavedItem(schedule)
+                        }
+                    )
+                }
+            } else {
                 HomeBody(
                     scheduleList = uiState.scheduleList,
                     onItemClick = navigateToItemUpdate,
                     viewModel = viewModel,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = innerPadding
+                    modifier = Modifier.padding(innerPadding),
+                    contentPadding = PaddingValues(0.dp)
                 )
             }
 
@@ -209,10 +209,8 @@ private fun HomeBody(
     val categories = listOf("すべて", "仕事", "プライベート", "その他")
 
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
             .fillMaxSize()
-            .padding(contentPadding),
     ) {
 //---------- ナビゲーションバー ----------//
         LazyRow(
@@ -250,9 +248,8 @@ private fun HomeBody(
         // スケジュール表示エリア
         LazyColumn(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            contentPadding = PaddingValues(bottom = 120.dp)
+                .fillMaxSize(),
+            contentPadding = PaddingValues(16.dp)
         ) {
             if (filteredList.isEmpty()) {
                 item {
