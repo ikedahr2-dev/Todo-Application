@@ -14,8 +14,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -23,17 +26,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.R
-import com.example.inventory.data.Schedule // Schedule型を使用
+import com.example.inventory.convertDateTimeToMillis
+import com.example.inventory.data.Schedule
+import com.example.inventory.scheduleTodoAlarm
 import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.md_theme_light_primary
 import java.text.SimpleDateFormat
 import java.util.Locale
-// アラームに使う
-import androidx.compose.ui.platform.LocalContext
-import com.example.inventory.scheduleTodoAlarm
-import com.example.inventory.convertDateTimeToMillis
-
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
@@ -50,22 +50,20 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-
     val today = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date())
+    val context = LocalContext.current
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf(today) }
     var selectedTime by remember { mutableStateOf("") }
     var showCalendar by remember { mutableStateOf(false) }
-    val context = LocalContext.current //アラーム
 
     Scaffold(
-       bottomBar = {
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        bottomBar = {
             ViewToggleButton(
-                onListClick = {
-                    showCalendar = false
-                    selectedDate = today},
+                onListClick = { showCalendar = false; selectedDate = today },
                 onCalendarClick = { showCalendar = true }
             )
         },
@@ -73,7 +71,7 @@ fun HomeScreen(
             if (!showCalendar) {
                 FloatingActionButton(
                     onClick = {
-                        selectedDate = ""
+                        selectedDate = today
                         selectedTime = ""
                         viewModel.onAddClick()
                     },
@@ -85,10 +83,7 @@ fun HomeScreen(
                         .size(75.dp)
                         .border(BorderStroke(1.5.dp, md_theme_light_primary), CircleShape)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.item_entry_title)
-                    )
+                    Icon(imageVector = Icons.Default.Add, contentDescription = null)
                 }
             }
         },
@@ -96,14 +91,14 @@ fun HomeScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             if (showCalendar) {
                 Box(modifier = Modifier.padding(innerPadding)) {
-
                     CalendarScreen(
-                        scheduleList = uiState.scheduleList, // データを渡す
-                        selectedDate = selectedDate,         // 選ばれている日を渡す
-                        onDateSelected = { date ->
-                            selectedDate = date // 日付が更新されたら保存する
-                        },
+                        scheduleList = uiState.scheduleList,
+                        selectedDate = selectedDate,
+                        onDateSelected = { selectedDate = it },
                         onCalendarItemClick = { schedule ->
+                            // 編集時に日付と時間を同期
+                            selectedDate = schedule.date
+                            selectedTime = schedule.time
                             viewModel.onEditSavedItem(schedule)
                         }
                     )
@@ -111,41 +106,43 @@ fun HomeScreen(
             } else {
                 HomeBody(
                     scheduleList = uiState.scheduleList,
-                    onItemClick = navigateToItemUpdate,
-                    viewModel = viewModel,
-                    modifier = Modifier.padding(innerPadding),
-                    contentPadding = PaddingValues(0.dp)
+                    onEditItem = { schedule ->
+                        // 編集時に日付と時間を同期
+                        selectedDate = schedule.date
+                        selectedTime = schedule.time
+                        viewModel.onEditSavedItem(schedule)
+                    },
+                    modifier = Modifier.padding(innerPadding)
                 )
             }
 
-            // 【修正】入力ダイアログ（editingItemもSchedule型になっている前提）
+            // 入力ダイアログ
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
+                    initialText = uiState.editingItem?.text ?: "",
                     onDismiss = { viewModel.onDismissInputBox() },
                     onSave = { text, date, time ->
-                        val editingItem = viewModel.editingItem.value
-                        if (editingItem != null) {
-                            viewModel.updateItem(editingItem, text, date, time)
+                        val item = uiState.editingItem
+                        if (item != null) {
+                            viewModel.updateItem(item, text, date, time)
                         } else {
                             viewModel.addText(text, date, time)
                         }
-                        //アラーム
-                        val taskTimeMillis = convertDateTimeToMillis(selectedDate, selectedTime)
+
+                        // アラーム予約ロジック
+                        val taskTimeMillis = convertDateTimeToMillis(date, time)
                         if (taskTimeMillis != null) {
-
-                            // 同じ時間でも重複しないように、タスク固有のID（無ければ時間のハッシュ値）を用意
-                            val idForAlarm = editingItem?.id ?: taskTimeMillis.hashCode()
-
+                            val idForAlarm = item?.id ?: taskTimeMillis.hashCode()
                             scheduleTodoAlarm(
                                 context = context,
-                                taskId = idForAlarm, // ★新しく追加した taskId 引数にIDを渡す
+                                taskId = idForAlarm,
                                 taskTitle = text,
                                 taskTimeMillis = taskTimeMillis
                             )
-                        }//アラームここまで
+                        }
                         viewModel.onDismissInputBox()
                     },
-                    onDelete = viewModel.editingItem.value?.let { item ->
+                    onDelete = uiState.editingItem?.let { item ->
                         { viewModel.deleteItem(item) }
                     },
                     onSelectDate = { showDatePicker = true },
@@ -162,210 +159,100 @@ fun HomeScreen(
                     onDismissRequest = { showDatePicker = false },
                     confirmButton = {
                         TextButton(onClick = {
-                            val millis = datePickerState.selectedDateMillis
-                            selectedDate = millis?.let {
-                                SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault())
-                                    .format(java.util.Date(it))
-                            } ?: ""
+                            selectedDate = datePickerState.selectedDateMillis?.let {
+                                SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date(it))
+                            } ?: selectedDate
                             showDatePicker = false
-                        }) {
-                            Text(stringResource(R.string.enter))
-                        }
+                        }) { Text(stringResource(R.string.enter)) }
                     }
-                ) {
-                    DatePicker(state = datePickerState)
-                }
+                ) { DatePicker(state = datePickerState) }
             }
 
             // TimePicker
             if (showTimePicker) {
-                val timePickerState = rememberTimePickerState(initialHour = 0, initialMinute = 0)
+                val timePickerState = rememberTimePickerState()
                 AlertDialog(
                     onDismissRequest = { showTimePicker = false },
                     confirmButton = {
                         TextButton(onClick = {
-                            selectedTime = String.format(
-                                "%02d:%02d",
-                                timePickerState.hour,
-                                timePickerState.minute
-                            )
+                            selectedTime = String.format("%02d:%02d", timePickerState.hour, timePickerState.minute)
                             showTimePicker = false
-                        }) {
-                            Text(stringResource(R.string.enter))
-                        }
+                        }) { Text(stringResource(R.string.enter)) }
                     },
-                    dismissButton = {
-                        TextButton(onClick = { showTimePicker = false }) {
-                            Text(stringResource(R.string.cancel))
-                        }
-                    },
-                    text = {
-                        Column {
-                            TimePicker(state = timePickerState)
-                        }
-                    },
-                    properties = DialogProperties(
-                        dismissOnBackPress = false,
-                        dismissOnClickOutside = false
-                    )
+                    dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.cancel)) } },
+                    text = { TimePicker(state = timePickerState) }
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeBody(
-    scheduleList: List<Schedule>, // 【重要】Schedule型のみに統合
-    onItemClick: (Int) -> Unit,
-    viewModel: HomeViewModel,
-    modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(0.dp),
+    scheduleList: List<Schedule>,
+    onEditItem: (Schedule) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    var selectedCategory by remember { mutableStateOf("すべて") }
-    val categories = listOf("すべて", "仕事", "プライベート", "その他")
+    // 日付ごとにグループ化
+    val groupedSchedules = scheduleList
+        .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
+        .groupBy { it.date }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp)
     ) {
-//---------- ナビゲーションバー ----------//
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            items(categories) { category ->
-                FilterChip(
-                    selected = (category == selectedCategory),
-                    onClick = { selectedCategory = category },
-                    label = { Text(category) },
-                    shape = CircleShape,
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = md_theme_light_primary,
-                        selectedLabelColor = Color.White
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        borderColor = md_theme_light_primary
-                    )
+        if (scheduleList.isEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.no_item_description),
+                    modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge
                 )
             }
-        }
-
-        // フィルタリング処理
-        val filteredList = (if (selectedCategory == "すべて") {
-            scheduleList
         } else {
-            scheduleList.filter { it.category == selectedCategory }
-        }).sortedWith(
-            compareBy<Schedule> { it.date }
-                .thenBy { it.time }
-        )
-
-        // スケジュール表示エリア
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize(),
-            contentPadding = PaddingValues(16.dp)
-        ) {
-            if (filteredList.isEmpty()) {
+            groupedSchedules.forEach { (date, schedules) ->
+                // --- 日付の見出し (例: // 2026/05/15 の予定) ---
                 item {
                     Text(
-                        text = stringResource(R.string.no_item_description),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.fillMaxWidth()
-                            .padding(top = 32.dp),
+                        text = "// $date の予定",
+                        color = md_theme_light_primary,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
                     )
                 }
-            } else {
 
-//---------- リスト表示 ----------//
-
-                items(filteredList) { schedule ->
-
+                // --- その日の予定リスト ---
+                items(schedules) { schedule ->
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                            .border(
-                                width = 1.5.dp,
-                                color = md_theme_light_primary,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .background(
-                                Color.White,
-                                RoundedCornerShape(8.dp)
-                            )
-                            .clickable {
-                                viewModel.onEditSavedItem(schedule)
-                            }
+                            .padding(vertical = 4.dp)
+                            .border(1.5.dp, md_theme_light_primary, RoundedCornerShape(8.dp))
+                            .background(Color.White, RoundedCornerShape(8.dp))
+                            .clickable { onEditItem(schedule) }
                             .padding(12.dp)
                     ) {
-
-                        Column {
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-
-                                Text(
-                                    text = schedule.text,
-                                    fontSize = 28.sp
-                                )
-
-                                Text(
-                                    text = schedule.time,
-                                    fontSize = 24.sp
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = schedule.date,
-                                fontSize = 15.sp
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = schedule.text, fontSize = 24.sp, modifier = Modifier.weight(1f))
+                            Text(text = schedule.time, fontSize = 20.sp, color = Color.DarkGray)
                         }
                     }
                 }
             }
+            // スクロール用余白
+            item { Spacer(modifier = Modifier.height(100.dp)) }
         }
     }
 }
 
 @Composable
-fun ViewToggleButton(
-    onListClick: () -> Unit,
-    onCalendarClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    BottomAppBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        modifier = modifier
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = onListClick,
-                modifier = Modifier.weight(1f),
-                shape = MaterialTheme.shapes.small
-            ) {
-                Text("リスト")
-            }
-            Button(
-                onClick = onCalendarClick,
-                modifier = Modifier.weight(1f),
-                shape = MaterialTheme.shapes.small
-            ) {
-                Text("カレンダー")
-            }
+fun ViewToggleButton(onListClick: () -> Unit, onCalendarClick: () -> Unit) {
+    BottomAppBar(containerColor = MaterialTheme.colorScheme.surface) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onListClick, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small) { Text("リスト") }
+            Button(onClick = onCalendarClick, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small) { Text("カレンダー") }
         }
     }
 }

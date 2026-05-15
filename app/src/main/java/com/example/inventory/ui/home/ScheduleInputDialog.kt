@@ -21,11 +21,12 @@ fun ScheduleInputDialog(
     onSelectTime: () -> Unit,
     selectedDate: String,
     selectedTime: String,
+    initialText: String = ""
 ) {
 
-    var text by remember { mutableStateOf("") }
-
-    var showError by remember { mutableStateOf(false) }
+    var text by remember(initialText) {
+        mutableStateOf(initialText)
+    }
 
     val isFormValid = text.isNotBlank() && selectedDate.isNotBlank() && selectedTime.isNotBlank()
 
@@ -34,23 +35,17 @@ fun ScheduleInputDialog(
         confirmButton = {
             Button(
                 onClick = {
-
-                    // 保存されてれば閉じる
-                    if (isFormValid) {
-                        onSave(text, selectedDate, selectedTime)
-                        onDismiss()
-                    // 未入力
-                    } else {
-                        showError = true
-                    }
+                    onSave(text, selectedDate, selectedTime)
+                    onDismiss()
                 },
-                enabled = true // 👈 決定ボタンはいつでも押せるように変更！
+                enabled = isFormValid //有効/無効を制御
             ) {
                 Text(stringResource(R.string.enter))
             }
         },
         dismissButton = {
             Row {
+                //削除ボタン（編集時のみ）
                 if (onDelete != null) {
                     TextButton(
                         onClick = {
@@ -74,10 +69,7 @@ fun ScheduleInputDialog(
 
                 OutlinedTextField(
                     value = text,
-                    onValueChange = {
-                        text = it
-                        if (isFormValid) showError = false
-                    },
+                    onValueChange = { text = it },
                     label = { Text(stringResource(R.string.stay_schedule)) }
                 )
 
@@ -95,8 +87,7 @@ fun ScheduleInputDialog(
                     )
                 }
 
-                // 未入力エラー表示
-                if (showError) {
+                if (!isFormValid) { //もし未入力だった場合のエラーメッセージ
                     Text(
                         text = "日付・時間・予定をすべて入力してください",
                         color = androidx.compose.ui.graphics.Color.Red,
