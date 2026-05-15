@@ -56,18 +56,27 @@ class MainActivity : ComponentActivity() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "ToDoリマインダー"
-            val descriptionText = "タスクの期限を通知します"
-
-            // ★ここを DEFAULT から HIGH に変更
-            val importance = NotificationManager.IMPORTANCE_HIGH
-
-            val channel = NotificationChannel("todo_notifications", name, importance).apply {
-                description = descriptionText
-            }
             val notificationManager: NotificationManager =
-                getSystemService(Context.NOTIFICATION_SERVICE ?: Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            //5分前通知用（バナー・音ありの派手なチャンネル）
+            val name1 = "ToDoリマインダー"
+            val descriptionText1 = "タスクの期限を通知します"
+            val importance1 = NotificationManager.IMPORTANCE_HIGH
+            val channel1 = NotificationChannel("todo_notifications", name1, importance1).apply {
+                description = descriptionText1
+            }
+            notificationManager.createNotificationChannel(channel1)
+
+            //常駐通知用（バナーも音も出ない静かなチャンネル）
+            val name2 = "ToDoリスト常駐状況"
+            val descriptionText2 = "未完了のタスク数を常に表示します"
+            val importance2 = NotificationManager.IMPORTANCE_LOW // ◀ LOW（低）にすることでバナーや音が一切出なくなります！
+            val channel2 = NotificationChannel("ongoing_status", name2, importance2).apply {
+                description = descriptionText2
+            }
+            notificationManager.createNotificationChannel(channel2)
         }
     }
+
 }

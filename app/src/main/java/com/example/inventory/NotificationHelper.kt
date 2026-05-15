@@ -113,3 +113,48 @@ fun cancelTodoAlarm(context: Context, taskId: Int) {
     )
     alarmManager.cancel(pendingIntent)
 }
+//未完了タスク数を常駐通知として表示・更新する関数
+fun updateOngoingTaskCountNotification(context: Context, uncompletedCount: Int) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
+        != PackageManager.PERMISSION_GRANTED
+    ) {
+        return
+    }
+
+    // 常駐通知専用のID（固定値。5分前アラームのIDと被らない数字）
+    val ONGOING_NOTIFICATION_ID = 9999
+
+    // 通知をタップしたときにアプリを開く設定
+    val activityIntent = Intent(context, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    }
+    val activityPendingIntent = PendingIntent.getActivity(
+        context,
+        ONGOING_NOTIFICATION_ID,
+        activityIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    // 表示するメッセージの切り替え
+    val contentText = if (uncompletedCount > 0) {
+        "未完了のタスクが残り ${uncompletedCount} 件あります"
+    } else {
+        "すべてのタスクが完了しました！"
+    }
+
+    val builder = NotificationCompat.Builder(context, "ongoing_status")
+        .setSmallIcon(android.R.drawable.ic_menu_agenda)
+        .setContentTitle("ToDoリストの状況")
+        .setContentText(contentText)
+        .setPriority(NotificationCompat.PRIORITY_LOW) // 常駐なので音やバナーで邪魔しない低優先度
+        .setOngoing(true) // ★超重要：ユーザーがスワイプしても消せないように常駐させる
+        .setContentIntent(activityPendingIntent)
+        .setAutoCancel(false)
+
+    try {
+        NotificationManagerCompat.from(context).notify(ONGOING_NOTIFICATION_ID, builder.build())
+    } catch (e: SecurityException) {
+        e.printStackTrace()
+    }
+}

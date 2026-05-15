@@ -32,6 +32,7 @@ import com.example.inventory.scheduleTodoAlarm
 import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.md_theme_light_primary
+import com.example.inventory.updateOngoingTaskCountNotification
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -52,7 +53,12 @@ fun HomeScreen(
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val today = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date())
     val context = LocalContext.current
-
+    //リストに変化があったら自動で常駐通知の件数を更新する
+    LaunchedEffect(uiState.scheduleList) {
+        // 現在のリストの全件数を未完了数としてカウント（もし完了フラグ等があれば filter { !it.isCompleted } などにしてください）
+        val uncompletedCount = uiState.scheduleList.size
+        updateOngoingTaskCountNotification(context, uncompletedCount)
+    }
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf("") }
