@@ -30,6 +30,7 @@ import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.md_theme_light_primary
 import java.text.SimpleDateFormat
+import java.util.Locale
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
@@ -42,23 +43,25 @@ fun HomeScreen(
     navigateToItemEntry: () -> Unit,
     navigateToItemUpdate: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    // 【修正】Factoryを渡してDBリポジトリを使えるようにする
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
+    val today = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date())
+
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
-    var selectedDate by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf(today) }
     var selectedTime by remember { mutableStateOf("") }
     var showCalendar by remember { mutableStateOf(false) }
 
     Scaffold(
-        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        bottomBar = {
+       bottomBar = {
             ViewToggleButton(
-                onListClick = { showCalendar = false },
+                onListClick = {
+                    showCalendar = false
+                    selectedDate = today},
                 onCalendarClick = { showCalendar = true }
             )
         },
@@ -88,21 +91,26 @@ fun HomeScreen(
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
             if (showCalendar) {
-                CalendarScreen(
-                    onDateSelected = { date ->
-                        selectedDate = date
-                        selectedTime = ""
-                        viewModel.onAddClick()
-                    }
-                )
+                Box(modifier = Modifier.padding(innerPadding)) {
+
+                    CalendarScreen(
+                        scheduleList = uiState.scheduleList, // データを渡す
+                        selectedDate = selectedDate,         // 選ばれている日を渡す
+                        onDateSelected = { date ->
+                            selectedDate = date // 日付が更新されたら保存する
+                        },
+                        onCalendarItemClick = { schedule ->
+                            viewModel.onEditSavedItem(schedule)
+                        }
+                    )
+                }
             } else {
-                // 【修正】scheduleListのみを渡すように変更
                 HomeBody(
                     scheduleList = uiState.scheduleList,
                     onItemClick = navigateToItemUpdate,
                     viewModel = viewModel,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = innerPadding
+                    modifier = Modifier.padding(innerPadding),
+                    contentPadding = PaddingValues(0.dp)
                 )
             }
 
@@ -201,10 +209,8 @@ private fun HomeBody(
     val categories = listOf("すべて", "仕事", "プライベート", "その他")
 
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
             .fillMaxSize()
-            .padding(contentPadding),
     ) {
 //---------- ナビゲーションバー ----------//
         LazyRow(
@@ -242,9 +248,8 @@ private fun HomeBody(
         // スケジュール表示エリア
         LazyColumn(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            contentPadding = PaddingValues(bottom = 120.dp)
+                .fillMaxSize(),
+            contentPadding = PaddingValues(16.dp)
         ) {
             if (filteredList.isEmpty()) {
                 item {
