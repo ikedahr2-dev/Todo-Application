@@ -22,22 +22,34 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         return
     }
 
+    // 💡【2番の追加コード】タップしたときに起動する画面（MainActivity）を指定
+    val activityIntent = Intent(context, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    }
+
+    // 通知に埋め込むための特別なインテントを作成
+    val activityPendingIntent = PendingIntent.getActivity(
+        context,
+        notificationId, // タスクごとのIDをここにも使う
+        activityIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
     val builder = NotificationCompat.Builder(context, "todo_notifications")
         .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
         .setContentTitle(title)
         .setContentText(content)
-        .setPriority(NotificationCompat.PRIORITY_MAX) // 優先度を最高に
-        .setDefaults(NotificationCompat.DEFAULT_ALL)   // 音とバイブを強制有効化
-        .setAutoCancel(true)
+        .setPriority(NotificationCompat.PRIORITY_MAX)
+        .setDefaults(NotificationCompat.DEFAULT_ALL)
+        .setContentIntent(activityPendingIntent) //タップした時の動きを登録
+        .setAutoCancel(true) //タップされたら自動的に通知を消す
 
     try {
-        // ★固定の「1」ではなく、タスク固有のIDを使うことで、同じ時間の通知が並んで表示されます
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     } catch (e: SecurityException) {
         e.printStackTrace()
     }
 }
-
 // 2. アラームを予約する関数（引数に taskId を追加して同じ時間の通知が消えるのを防止）
 fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTimeMillis: Long) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -53,10 +65,9 @@ fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTime
     val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
         putExtra("TODO_TITLE", "【5分前】タスクの時間です")
         putExtra("TODO_CONTENT", taskTitle)
-        putExtra("TODO_ID", taskId) // ★レシーバーにタスクIDを渡す
+        putExtra("TODO_ID", taskId)
     }
 
-    // ★requestCodeに「taskId」を使うことで、同じ時間の別タスクでも予約が上書きされなくなります
     val pendingIntent = PendingIntent.getBroadcast(
         context,
         taskId,
@@ -64,7 +75,6 @@ fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTime
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    // 予定日時から5分（300,000ミリ秒）を引き算する
     val alarmTimeMillis = taskTimeMillis - (5 * 60 * 1000)
 
     if (alarmTimeMillis > System.currentTimeMillis()) {
@@ -88,4 +98,18 @@ fun convertDateTimeToMillis(dateString: String, timeString: String): Long? {
         e.printStackTrace()
         null
     }
+}
+
+// 4. アラームをキャンセルする関数（★3番の機能を追加）
+fun cancelTodoAlarm(context: Context, taskId: Int) {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val intent = Intent(context, TodoAlarmReceiver::class.java)
+
+    val pendingIntent = PendingIntent.getBroadcast(
+        context,
+        taskId,
+        intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    alarmManager.cancel(pendingIntent)
 }
