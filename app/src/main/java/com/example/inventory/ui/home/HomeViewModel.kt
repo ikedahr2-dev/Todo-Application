@@ -12,7 +12,8 @@ import kotlinx.coroutines.launch
 data class HomeUiState(
     val scheduleList: List<Schedule> = listOf(),
     val showDatePicker: Boolean = false,
-    val showInputBox: Boolean = false
+    val showInputBox: Boolean = false,
+    val editingItem: Schedule? = null
 )
 
 class HomeViewModel(
@@ -38,7 +39,9 @@ class HomeViewModel(
 
     fun onAddClick() {
         _editingItem.value = null
-        _uiState.update { it.copy(showInputBox = true) } // ちゃんと _uiState を更新！
+        _uiState.update { it.copy(
+            showInputBox = true,
+            editingItem = null) }
     }
 
     fun onDismissInputBox() {
@@ -56,7 +59,9 @@ class HomeViewModel(
 
     fun onEditSavedItem(schedule: Schedule) {
         _editingItem.value = schedule
-        _uiState.update { it.copy(showInputBox = true) }
+        _uiState.update { it.copy(
+            showInputBox = true,
+            editingItem = schedule) }
     }
 
     fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String) {
