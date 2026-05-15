@@ -17,6 +17,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- 通知用の権限 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- ★追加1: 正確な時間にアラームを鳴らすための権限 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+
     <application
         android:name=".InventoryApplication"
         android:allowBackup="true"
@@ -26,6 +32,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Inventory"
         tools:targetApi="33">
+
+        <!-- ★追加2: 時間になったら起動して通知を処理するレシーバー -->
+        <receiver android:name=".TodoAlarmReceiver" android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
