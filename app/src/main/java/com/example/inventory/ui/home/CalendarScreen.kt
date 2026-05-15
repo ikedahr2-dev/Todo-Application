@@ -75,7 +75,6 @@ fun CalendarScreen(
             // 左側：選択中の日付を表示（ボタンじゃなくてただのテキスト）
             // CalendarScreen.kt のテキスト部分
             Text(
-                // selectedDate が空なら今日、入っていればその日を出す（念のための二段構え）
                 text = selectedDate.ifEmpty {
                     SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date())
                 },
@@ -102,7 +101,8 @@ fun CalendarScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            ) {
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+        ) {
             items(dailySchedules) { schedule ->
                 // ✨ ここに Box（カードのデザイン）を入れる！
                 Box(
