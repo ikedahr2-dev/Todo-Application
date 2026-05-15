@@ -21,31 +21,36 @@ fun ScheduleInputDialog(
     onSelectTime: () -> Unit,
     selectedDate: String,
     selectedTime: String,
-    //dialogProperties: Any
 ) {
 
-    var text by remember {
-        mutableStateOf("")
-    }
+    var text by remember { mutableStateOf("") }
 
-    val isFormValid = text.isNotBlank() && selectedDate.isNotBlank() && selectedTime.isNotBlank() //入力チェック
+    var showError by remember { mutableStateOf(false) }
+
+    val isFormValid = text.isNotBlank() && selectedDate.isNotBlank() && selectedTime.isNotBlank()
 
     AlertDialog(
         onDismissRequest = { },
         confirmButton = {
             Button(
                 onClick = {
-                    onSave(text, selectedDate, selectedTime)
-                    onDismiss()
+
+                    // 保存されてれば閉じる
+                    if (isFormValid) {
+                        onSave(text, selectedDate, selectedTime)
+                        onDismiss()
+                    // 未入力
+                    } else {
+                        showError = true
+                    }
                 },
-                enabled = isFormValid //有効/無効を制御
+                enabled = true // 👈 決定ボタンはいつでも押せるように変更！
             ) {
                 Text(stringResource(R.string.enter))
             }
         },
         dismissButton = {
             Row {
-                //削除ボタン（編集時のみ）
                 if (onDelete != null) {
                     TextButton(
                         onClick = {
@@ -69,7 +74,10 @@ fun ScheduleInputDialog(
 
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = it },
+                    onValueChange = {
+                        text = it
+                        if (isFormValid) showError = false
+                    },
                     label = { Text(stringResource(R.string.stay_schedule)) }
                 )
 
@@ -87,7 +95,8 @@ fun ScheduleInputDialog(
                     )
                 }
 
-                if (!isFormValid) { //もし未入力だった場合のエラーメッセージ
+                // 未入力エラー表示
+                if (showError) {
                     Text(
                         text = "日付・時間・予定をすべて入力してください",
                         color = androidx.compose.ui.graphics.Color.Red,
