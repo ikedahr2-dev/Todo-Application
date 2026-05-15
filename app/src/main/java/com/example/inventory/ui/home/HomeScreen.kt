@@ -30,6 +30,7 @@ import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.md_theme_light_primary
 import java.text.SimpleDateFormat
+import java.util.Locale
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
@@ -42,23 +43,27 @@ fun HomeScreen(
     navigateToItemEntry: () -> Unit,
     navigateToItemUpdate: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    // 【修正】Factoryを渡してDBリポジトリを使えるようにする
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
+    val today = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date())
+
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
-    var selectedDate by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf(today) }
     var selectedTime by remember { mutableStateOf("") }
     var showCalendar by remember { mutableStateOf(false) }
 
     Scaffold(
+        // ここから下は今のままでOK！
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         bottomBar = {
             ViewToggleButton(
-                onListClick = { showCalendar = false },
+                onListClick = {
+                    showCalendar = false
+                    selectedDate = today},
                 onCalendarClick = { showCalendar = true }
             )
         },
@@ -89,14 +94,17 @@ fun HomeScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             if (showCalendar) {
                 CalendarScreen(
+                    scheduleList = uiState.scheduleList, // データを渡す
+                    selectedDate = selectedDate,         // 選ばれている日を渡す
                     onDateSelected = { date ->
-                        selectedDate = date
-                        selectedTime = ""
-                        viewModel.onAddClick()
+                        selectedDate = date // 日付が更新されたら保存する
+                    },
+                    onCalendarItemClick = { schedule ->
+                        viewModel.onEditSavedItem(schedule)
                     }
                 )
             } else {
-                // 【修正】scheduleListのみを渡すように変更
+
                 HomeBody(
                     scheduleList = uiState.scheduleList,
                     onItemClick = navigateToItemUpdate,
