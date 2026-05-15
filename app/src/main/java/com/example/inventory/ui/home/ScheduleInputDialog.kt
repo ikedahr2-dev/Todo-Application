@@ -28,6 +28,10 @@ fun ScheduleInputDialog(
         mutableStateOf(initialText)
     }
 
+    // エラーフラグ
+    var showError by remember { mutableStateOf(false) }
+
+    // 入力チェック
     val isFormValid = text.isNotBlank() && selectedDate.isNotBlank() && selectedTime.isNotBlank()
 
     AlertDialog(
@@ -35,17 +39,24 @@ fun ScheduleInputDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onSave(text, selectedDate, selectedTime)
-                    onDismiss()
+
+                    // 保存出来たら閉じる
+                    if (isFormValid) {
+                        onSave(text, selectedDate, selectedTime)
+                        onDismiss()
+
+                    // 未入力
+                    } else {
+                        showError = true
+                    }
                 },
-                enabled = isFormValid //有効/無効を制御
+                enabled = true
             ) {
                 Text(stringResource(R.string.enter))
             }
         },
         dismissButton = {
             Row {
-                //削除ボタン（編集時のみ）
                 if (onDelete != null) {
                     TextButton(
                         onClick = {
@@ -69,7 +80,10 @@ fun ScheduleInputDialog(
 
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = it },
+                    onValueChange = {
+                        text = it
+                        if (isFormValid) showError = false
+                    },
                     label = { Text(stringResource(R.string.stay_schedule)) }
                 )
 
@@ -87,7 +101,8 @@ fun ScheduleInputDialog(
                     )
                 }
 
-                if (!isFormValid) { //もし未入力だった場合のエラーメッセージ
+                // ✨ showErrorがtrueのときだけエラー文を表示！
+                if (showError) {
                     Text(
                         text = "日付・時間・予定をすべて入力してください",
                         color = androidx.compose.ui.graphics.Color.Red,
