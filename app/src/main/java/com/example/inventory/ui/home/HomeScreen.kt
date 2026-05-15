@@ -132,8 +132,13 @@ fun HomeScreen(
                         //アラーム
                         val taskTimeMillis = convertDateTimeToMillis(selectedDate, selectedTime)
                         if (taskTimeMillis != null) {
+
+                            // 同じ時間でも重複しないように、タスク固有のID（無ければ時間のハッシュ値）を用意
+                            val idForAlarm = editingItem?.id ?: taskTimeMillis.hashCode()
+
                             scheduleTodoAlarm(
                                 context = context,
+                                taskId = idForAlarm, // ★新しく追加した taskId 引数にIDを渡す
                                 taskTitle = text,
                                 taskTimeMillis = taskTimeMillis
                             )
