@@ -15,4 +15,4 @@ class TodoAlarmReceiver : BroadcastReceiver() {
         // ★引数に notificationId を追加して呼び出す
         sendTodoNotification(context, notificationId, title, content)
     }
-}
+}//
