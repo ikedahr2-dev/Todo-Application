@@ -6,11 +6,13 @@ import android.content.Intent
 
 class TodoAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        // 時間（5分前）になったらここが自動で実行されます
         val title = intent.getStringExtra("TODO_TITLE") ?: "タスクの通知"
         val content = intent.getStringExtra("TODO_CONTENT") ?: "5分前です"
 
-        // NotificationHelperに定義してある通知関数を呼び出します
-        sendTodoNotification(context, title, content)
+        // ★アラーム予約時に込めたタスクID（無ければデフォルトで1）を取り出す
+        val notificationId = intent.getIntExtra("TODO_ID", 1)
+
+        // ★引数に notificationId を追加して呼び出す
+        sendTodoNotification(context, notificationId, title, content)
     }
 }

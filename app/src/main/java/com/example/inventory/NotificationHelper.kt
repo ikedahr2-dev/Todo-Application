@@ -13,8 +13,8 @@ import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-// 1. 通知を表示する関数
-fun sendTodoNotification(context: Context, title: String, content: String) {
+// 1. 通知を表示する関数（引数に notificationId を追加して重複を防止）
+fun sendTodoNotification(context: Context, notificationId: Int, title: String, content: String) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
         != PackageManager.PERMISSION_GRANTED
@@ -26,21 +26,20 @@ fun sendTodoNotification(context: Context, title: String, content: String) {
         .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
         .setContentTitle(title)
         .setContentText(content)
-        // ★ここから下の2行を変更・追加します
         .setPriority(NotificationCompat.PRIORITY_MAX) // 優先度を最高に
         .setDefaults(NotificationCompat.DEFAULT_ALL)   // 音とバイブを強制有効化
         .setAutoCancel(true)
 
     try {
-        NotificationManagerCompat.from(context).notify(1, builder.build())
+        // ★固定の「1」ではなく、タスク固有のIDを使うことで、同じ時間の通知が並んで表示されます
+        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     } catch (e: SecurityException) {
         e.printStackTrace()
     }
 }
 
-
-// 2. アラームを予約する関数
-fun scheduleTodoAlarm(context: Context, taskTitle: String, taskTimeMillis: Long) {
+// 2. アラームを予約する関数（引数に taskId を追加して同じ時間の通知が消えるのを防止）
+fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTimeMillis: Long) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -54,12 +53,13 @@ fun scheduleTodoAlarm(context: Context, taskTitle: String, taskTimeMillis: Long)
     val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
         putExtra("TODO_TITLE", "【5分前】タスクの時間です")
         putExtra("TODO_CONTENT", taskTitle)
+        putExtra("TODO_ID", taskId) // ★レシーバーにタスクIDを渡す
     }
 
-    val requestCode = taskTimeMillis.hashCode()
+    // ★requestCodeに「taskId」を使うことで、同じ時間の別タスクでも予約が上書きされなくなります
     val pendingIntent = PendingIntent.getBroadcast(
         context,
-        requestCode,
+        taskId,
         intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
@@ -76,7 +76,7 @@ fun scheduleTodoAlarm(context: Context, taskTitle: String, taskTimeMillis: Long)
     }
 }
 
-// 3. 日時を変換する関数（消えていたので復活させます）
+// 3. 日時を変換する関数
 fun convertDateTimeToMillis(dateString: String, timeString: String): Long? {
     return try {
         val dateTimeString = "$dateString $timeString"
