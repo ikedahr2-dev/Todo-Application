@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -74,7 +75,6 @@ fun CalendarScreen(
             // 左側：選択中の日付を表示（ボタンじゃなくてただのテキスト）
             // CalendarScreen.kt のテキスト部分
             Text(
-                // selectedDate が空なら今日、入っていればその日を出す（念のための二段構え）
                 text = selectedDate.ifEmpty {
                     SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date())
                 },
@@ -100,7 +100,8 @@ fun CalendarScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .weight(1f),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) {
             items(dailySchedules) { schedule ->
                 // ✨ ここに Box（カードのデザイン）を入れる！
