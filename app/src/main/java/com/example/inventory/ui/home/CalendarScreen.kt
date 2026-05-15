@@ -88,7 +88,7 @@ fun CalendarScreen(
                 enabled = selectedDate.isNotBlank(),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("予定を入力")
+                Text("予定を\n入力")
             }
         }
 
