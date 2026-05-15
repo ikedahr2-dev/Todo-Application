@@ -114,13 +114,14 @@ fun HomeScreen(
                     onItemClick = navigateToItemUpdate,
                     viewModel = viewModel,
                     modifier = Modifier.padding(innerPadding),
-                    contentPadding = PaddingValues(0.dp)
+                    contentPadding = PaddingValues(0.dp),
                 )
             }
 
             // 【修正】入力ダイアログ（editingItemもSchedule型になっている前提）
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
+                    initialText = uiState.editingItem?.text ?: "",
                     onDismiss = { viewModel.onDismissInputBox() },
                     onSave = { text, date, time ->
                         val editingItem = viewModel.editingItem.value
