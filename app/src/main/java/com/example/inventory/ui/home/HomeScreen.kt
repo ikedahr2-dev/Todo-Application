@@ -55,15 +55,15 @@ fun HomeScreen(
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
-    var selectedDate by remember { mutableStateOf(today) }
+    var selectedDate by remember { mutableStateOf("") }
     var selectedTime by remember { mutableStateOf("") }
     var showCalendar by remember { mutableStateOf(false) }
 
     Scaffold(
-        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        //modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         bottomBar = {
             ViewToggleButton(
-                onListClick = { showCalendar = false; selectedDate = today },
+                onListClick = { showCalendar = false; /*selectedDate = "onListClick"*/ },
                 onCalendarClick = { showCalendar = true }
             )
         },
@@ -71,7 +71,7 @@ fun HomeScreen(
             if (!showCalendar) {
                 FloatingActionButton(
                     onClick = {
-                        selectedDate = today
+                        selectedDate = ""
                         selectedTime = ""
                         viewModel.onAddClick()
                     },
@@ -90,16 +90,24 @@ fun HomeScreen(
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
             if (showCalendar) {
+                LaunchedEffect(Unit) {
+                    selectedDate = ""
+                }
                 Box(modifier = Modifier.padding(innerPadding)) {
                     CalendarScreen(
                         scheduleList = uiState.scheduleList,
                         selectedDate = selectedDate,
-                        onDateSelected = { selectedDate = it },
+                        onDateSelected = { date -> selectedDate = date },
                         onCalendarItemClick = { schedule ->
-                            // 編集時に日付と時間を同期
                             selectedDate = schedule.date
                             selectedTime = schedule.time
                             viewModel.onEditSavedItem(schedule)
+                        },
+                        onAddClick = {
+                            if (selectedDate.isNotBlank()) {
+                                selectedTime = ""
+                                viewModel.onAddClick()
+                            }
                         }
                     )
                 }

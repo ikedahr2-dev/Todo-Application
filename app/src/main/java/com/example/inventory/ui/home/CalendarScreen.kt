@@ -44,7 +44,8 @@ fun CalendarScreen(
     scheduleList: List<Schedule>,
     selectedDate: String,
     onDateSelected: (String) -> Unit,
-    onCalendarItemClick: (Schedule) -> Unit
+    onCalendarItemClick: (Schedule) -> Unit,
+    onAddClick: () -> Unit
 ) {
     val state = rememberDatePickerState()
 
@@ -75,16 +76,16 @@ fun CalendarScreen(
             // 左側：選択中の日付を表示（ボタンじゃなくてただのテキスト）
             // CalendarScreen.kt のテキスト部分
             Text(
-                text = selectedDate.ifEmpty {
-                    SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date())
-                },
-                fontSize = 35.sp,
+                text = selectedDate.ifEmpty { "日付を選択してください" }, // 未選択時のガイド
+                fontSize = 24.sp, // 少しサイズ調整
                 color = md_theme_light_primary,
                 modifier = Modifier.padding(start = 8.dp)
             )
 
             Button(
-                onClick = { /* ここで入力ダイアログを開く処理 */ },
+                onClick = { onAddClick() },
+                // ★ここが重要：selectedDate が空じゃない時だけボタンを有効にする
+                enabled = selectedDate.isNotBlank(),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text("予定を入力")
@@ -104,7 +105,6 @@ fun CalendarScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) {
             items(dailySchedules) { schedule ->
-                // ✨ ここに Box（カードのデザイン）を入れる！
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
