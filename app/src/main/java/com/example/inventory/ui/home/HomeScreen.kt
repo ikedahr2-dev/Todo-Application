@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -230,6 +231,7 @@ fun HomeScreen(
                             selectedTime = schedule.time
                             viewModel.onEditSavedItem(schedule)
                         },
+                        onDeleteCompletedClick = { viewModel.deleteCompletedSchedules() },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -313,10 +315,14 @@ fun HomeScreen(
 private fun HomeBody(
     scheduleList: List<Schedule>,
     onEditItem: (Schedule) -> Unit,
+    onDeleteCompletedClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
-    val groupedSchedules = scheduleList
+    val uncompletedSchedules = scheduleList.filter { !it.isCompleted }
+    val completedSchedules = scheduleList.filter { it.isCompleted }
+
+    val groupedUncompleted = uncompletedSchedules
         .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
         .groupBy { it.date }
 
@@ -340,7 +346,7 @@ private fun HomeBody(
                     )
                 }
             } else {
-                groupedSchedules.forEach { (date, schedules) ->
+                groupedUncompleted.forEach { (date, schedules) ->
                     item {
                         Text(
                             text = "$date の予定",
@@ -351,45 +357,96 @@ private fun HomeBody(
                     }
 
                     items(schedules) { schedule ->
-                        Box(
+                        ScheduleItemRow(schedule = schedule, onEditItem = onEditItem, viewModel = viewModel)
+                    }
+                }
+
+                if (completedSchedules.isNotEmpty()) {
+                    item {
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .border(1.5.dp, md_theme_light_primary, RoundedCornerShape(8.dp))
-                                .background(Color.White, RoundedCornerShape(8.dp))
-                                .clickable { onEditItem(schedule) }
-                                .padding(12.dp)
+                                .padding(top = 24.dp, bottom = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = schedule.isCompleted,
-                                    onCheckedChange = { isChecked ->
-                                        viewModel.toggleScheduleStatus(schedule, isChecked)
-                                    },
-                                    modifier = Modifier.padding(end = 8.dp)
-                                )
+                            Text(
+                                text = "完了した予定",
+                                color = Color.Gray,
+                                fontSize = 16.sp
+                            )
 
-                                Text(
-                                    text = schedule.text,
-                                    fontSize = 24.sp,
-                                    modifier = Modifier.weight(1f),
-                                    style = androidx.compose.ui.text.TextStyle(
-                                        textDecoration = if (schedule.isCompleted) {
-                                            androidx.compose.ui.text.style.TextDecoration.LineThrough
-                                        } else {
-                                            androidx.compose.ui.text.style.TextDecoration.None
-                                        }
+                            //一括削除ボタン
+                            Button(
+                                onClick = onDeleteCompletedClick,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C)),
+                                shape = RoundedCornerShape(4.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("完了した予定を一括削除", fontSize = 12.sp, color = Color.White)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
                                     )
-                                )
-
-                                Text(text = schedule.time, fontSize = 20.sp, color = Color.DarkGray)
+                                }
                             }
                         }
+                    }
+
+                    items(completedSchedules) { schedule ->
+                        ScheduleItemRow(schedule = schedule, onEditItem = onEditItem, viewModel = viewModel)
                     }
                 }
 
                 item { Spacer(modifier = Modifier.height(100.dp)) }
             }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleItemRow(
+    schedule: Schedule,
+    onEditItem: (Schedule) -> Unit,
+    viewModel: HomeViewModel
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .border(1.5.dp, md_theme_light_primary, RoundedCornerShape(8.dp))
+            .background(Color.White, RoundedCornerShape(8.dp))
+            .clickable { onEditItem(schedule) }
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = schedule.isCompleted,
+                onCheckedChange = { isChecked ->
+                    viewModel.toggleScheduleStatus(schedule, isChecked)
+                },
+                modifier = Modifier.padding(end = 8.dp)
+            )
+
+            Text(
+                text = schedule.text,
+                fontSize = 24.sp,
+                modifier = Modifier.weight(1f),
+                style = androidx.compose.ui.text.TextStyle(
+                    textDecoration = if (schedule.isCompleted) {
+                        androidx.compose.ui.text.style.TextDecoration.LineThrough
+                    } else {
+                        androidx.compose.ui.text.style.TextDecoration.None
+                    }
+                )
+            )
+
+            Text(text = schedule.time, fontSize = 20.sp, color = Color.DarkGray)
         }
     }
 }

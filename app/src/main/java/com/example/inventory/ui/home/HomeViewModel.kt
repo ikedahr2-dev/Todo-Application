@@ -41,6 +41,7 @@ class HomeViewModel(
                 uncompletedCount = uncompletedCount
             )
 
+            val query = currentUiState.searchQuery.trim()
             val filteredList =
                 dbList.filter { schedule ->
 
@@ -55,7 +56,13 @@ class HomeViewModel(
                     }
                 }
 
-            currentUiState.copy(scheduleList = filteredList)
+            val sortedList = filteredList.sortedWith(
+                compareBy<Schedule> { it.isCompleted }
+                    .thenBy { it.date }
+                    .thenBy { it.time }
+            )
+
+            currentUiState.copy(scheduleList = sortedList)
 
         }
         .stateIn(
@@ -115,8 +122,34 @@ class HomeViewModel(
             onDismissInputBox()
         }
     }
+
+    //完了した予定の削除
+    fun deleteCompletedSchedules() {
+        viewModelScope.launch {
+            //現在の画面に紐づく予定から「完了済み」だけをフィルタ
+            val completedList = uiState.value.scheduleList.filter { it.isCompleted }
+
+            completedList.forEach { schedule ->
+                //データベースから予定を削除
+                schedulesRepository.deleteSchedule(schedule)
+                //アラームのキャンセル
+                cancelTodoAlarm(context = application.applicationContext, taskId = schedule.id)
+            }
+
+            //データベースの書き換え完了を一瞬待つ
+            kotlinx.coroutines.delay(100)
+
+            //削除後の最新の未完了タスク件数をカウントして通知を更新
+            val currentList = uiState.value.scheduleList
+            val uncompletedCount = currentList.count { !it.isCompleted }
+            updateOngoingTaskCountNotification(
+                context = application.applicationContext,
+                uncompletedCount = uncompletedCount
+            )
+        }
+    }
+
     //チェックボックスの切り替え処理
-    // チェックボックスの切り替え処理
     fun toggleScheduleStatus(schedule: Schedule, isChecked: Boolean) {
         viewModelScope.launch {
             // 1. データベース上の完了状態を更新
