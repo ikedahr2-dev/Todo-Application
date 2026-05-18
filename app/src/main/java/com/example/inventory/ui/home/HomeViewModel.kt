@@ -26,14 +26,14 @@ class HomeViewModel(
     private val application: Application //アプリのContextを取得するために追加
 ) : ViewModel() {
 
-    // 1. 【ここがキモ】ダイアログなどの「UI状態」を管理する
+    // 1. ダイアログなどの「UI状態」を管理する
     private val _uiState = MutableStateFlow(HomeUiState())
 
-    // 2. 【ここがキモ】DBのデータとUI状態を「ガッチャンコ」して HomeScreen に流す
+    // 2. DBのデータとUI状態を「ガッチャンコ」して HomeScreen に流す
     val uiState: StateFlow<HomeUiState> = schedulesRepository.getAllSchedulesStream()
         .combine(_uiState) { dbList, currentUiState ->
 
-            // ★ここを確実に「trueではないもの（＝未完了）」だけ数えるように書き換えます
+            // 「trueではないもの（＝未完了）」だけ数えるように書き換えます
             val uncompletedCount = dbList.count { it.isCompleted == false }
 
             updateOngoingTaskCountNotification(
@@ -42,14 +42,16 @@ class HomeViewModel(
             )
 
             val filteredList =
-                if (currentUiState.searchQuery.isBlank()) {
-                    dbList
-                } else {
-                    dbList.filter { schedule ->
-                        schedule.text.contains(
-                            currentUiState.searchQuery,
-                            ignoreCase = true
-                        )
+                dbList.filter { schedule ->
+
+                    val query = currentUiState.searchQuery.trim()
+
+                    if (query.isBlank()) {
+                        true
+                    } else {
+                        schedule.text.contains(query, ignoreCase = true) ||
+                                schedule.date.contains(query, ignoreCase = true) ||
+                                schedule.time.contains(query, ignoreCase = true)
                     }
                 }
 
