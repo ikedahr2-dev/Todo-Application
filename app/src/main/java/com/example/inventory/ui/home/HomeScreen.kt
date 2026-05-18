@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,7 +24,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.VisualTransformation
@@ -65,18 +65,20 @@ fun HomeScreen(
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val today = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date())
     val context = LocalContext.current
-    //リストに変化があったら自動で常駐通知の件数を更新する
+
+    // リストに変化があったら自動で常駐通知の件数を更新する
     LaunchedEffect(uiState.scheduleList) {
-        //修正：リストの全件数（size）ではなく、まだ完了していない(isCompletedがfalseの)タスクだけを正しく数える
         val uncompletedCount = uiState.scheduleList.count { !it.isCompleted }
         updateOngoingTaskCountNotification(context, uncompletedCount)
     }
+
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf("") }
     var selectedTime by remember { mutableStateOf("") }
     var showCalendar by remember { mutableStateOf(false) }
     val selectedCategory = uiState.selectedCategory ?: ""
+
     Scaffold(
         bottomBar = {
             ViewToggleButton(
@@ -134,7 +136,6 @@ fun HomeScreen(
                         .padding(innerPadding)
                         .fillMaxSize()
                 ) {
-
                     var selectedCategoryTab by remember { mutableStateOf("すべて") }
                     val categories = listOf("すべて", "仕事", "プライベート", "その他")
 
@@ -142,22 +143,16 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                         modifier = Modifier.fillMaxWidth()
-                    ){
+                    ) {
                         items(categories) { category ->
-
                             FilterChip(
                                 selected = (category == selectedCategoryTab),
                                 onClick = { selectedCategoryTab = category },
-                                label = {
-                                    Text(
-                                        text = category,
-                                        fontSize = 16.sp
-                                    )
-                                },
+                                label = { Text(text = category, fontSize = 16.sp) },
                                 modifier = Modifier
                                     .padding(vertical = 16.dp)
                                     .height(40.dp),
-                                shape = CircleShape,   // 形
+                                shape = CircleShape,
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primary,
                                     selectedLabelColor = Color.White
@@ -169,6 +164,13 @@ fun HomeScreen(
                         }
                     }
 
+                    // 内部処理用のデータリストの分離処理
+                    val uncompletedSchedules = uiState.scheduleList.filter { !it.isCompleted }
+                    val completedSchedules = uiState.scheduleList.filter { it.isCompleted }
+
+                    val groupedUncompleted = uncompletedSchedules
+                        .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
+                        .groupBy { it.date }
 
                     val strokeColor = md_theme_light_primary
                     val interactionSource = remember { MutableInteractionSource() }
@@ -181,8 +183,7 @@ fun HomeScreen(
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 0.dp)
-                            // 点線枠を描画するカスタム Modifier
+                            .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp)
                             .drawWithContent {
                                 drawContent()
                                 val stroke = Stroke(
@@ -214,28 +215,112 @@ fun HomeScreen(
                                     )
                                 },
                                 contentPadding = PaddingValues(
-                                    horizontal = 12.dp, // 左右の隙間（好みに応じて 4.dp などに減らしてもOK）
-                                    vertical = 6.dp     // 上下の隙間（ここを減らすと枠と文字がギュッと縮まります）
+                                    horizontal = 12.dp,
+                                    vertical = 10.dp
                                 ),
-                                container = {
-                                    // デフォルトのコンテナ枠線を表示させないために何も描画しない
-                                }
+                                container = {}
                             )
                         }
                     )
 
-                    HomeBody(
-                        scheduleList = uiState.scheduleList,
-                        onEditItem = { schedule ->
-                            selectedDate = schedule.date
-                            selectedTime = schedule.time
-                            viewModel.onEditSavedItem(schedule)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 0.dp)
+                    ) {
+                        if (uiState.scheduleList.isEmpty()) {
+                            item {
+                                Text(
+                                    text = stringResource(R.string.no_item_description),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 32.dp),
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.titleLarge
+                                )
+                            }
+                        } else {
+                            // 未完了の予定を日付毎に描画
+                            groupedUncompleted.forEach { (date, schedules) ->
+                                item {
+                                    Text(
+                                        text = "$date の予定",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 16.sp,
+                                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                                    )
+                                }
+
+                                items(schedules) { schedule ->
+                                    ScheduleItemRow(
+                                        schedule = schedule,
+                                        onEditItem = {
+                                            selectedDate = schedule.date
+                                            selectedTime = schedule.time
+                                            viewModel.onEditSavedItem(schedule)
+                                        },
+                                        viewModel = viewModel
+                                    )
+                                }
+                            }
+
+                            // 完了した予定の描画エリア
+                            if (completedSchedules.isNotEmpty()) {
+                                item {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 24.dp, bottom = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "完了した予定",
+                                            color = Color.Gray,
+                                            fontSize = 16.sp
+                                        )
+
+                                        // 予定を一括削除するボタン
+                                        Button(
+                                            onClick = { viewModel.deleteCompletedSchedules() },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C)),
+                                            shape = RoundedCornerShape(4.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(32.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("完了した予定を一括削除", fontSize = 12.sp, color = Color.White)
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                items(completedSchedules) { schedule ->
+                                    ScheduleItemRow(
+                                        schedule = schedule,
+                                        onEditItem = {
+                                            selectedDate = schedule.date
+                                            selectedTime = schedule.time
+                                            viewModel.onEditSavedItem(schedule)
+                                        },
+                                        viewModel = viewModel
+                                    )
+                                }
+                            }
+
+                            item { Spacer(modifier = Modifier.height(100.dp)) }
+                        }
+                    }
                 }
             }
-
             // 入力ダイアログ
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
@@ -309,88 +394,45 @@ fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// アイテム行コンポーネント (共通再利用部品として最下部に配置)
 @Composable
-private fun HomeBody(
-    scheduleList: List<Schedule>,
+private fun ScheduleItemRow(
+    schedule: Schedule,
     onEditItem: (Schedule) -> Unit,
-    modifier: Modifier = Modifier,
-    viewModel: HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    viewModel: HomeViewModel
 ) {
-    val groupedSchedules = scheduleList
-        .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
-        .groupBy { it.date }
-
-    Column(
-        modifier = modifier.fillMaxSize()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .border(1.5.dp, md_theme_light_primary, RoundedCornerShape(8.dp))
+            .background(Color.White, RoundedCornerShape(8.dp))
+            .clickable { onEditItem(schedule) }
+            .padding(12.dp)
     ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = schedule.isCompleted,
+                onCheckedChange = { isChecked ->
+                    viewModel.toggleScheduleStatus(schedule, isChecked)
+                },
+                modifier = Modifier.padding(end = 8.dp)
+            )
 
-        // ----- 予定閲覧 ----- //
-
-        LazyColumn(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 0.dp)
-        ) {
-            if (scheduleList.isEmpty()) {
-                item {
-                    Text(
-                        text = stringResource(R.string.no_item_description),
-                        modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                }
-            } else {
-                groupedSchedules.forEach { (date, schedules) ->
-                    item {
-                        Text(
-                            text = "$date の予定",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 16.sp,
-                            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-                        )
+            Text(
+                text = schedule.text,
+                fontSize = 24.sp,
+                modifier = Modifier.weight(1f),
+                style = androidx.compose.ui.text.TextStyle(
+                    textDecoration = if (schedule.isCompleted) {
+                        androidx.compose.ui.text.style.TextDecoration.LineThrough
+                    } else {
+                        androidx.compose.ui.text.style.TextDecoration.None
                     }
+                )
+            )
 
-                    items(schedules) { schedule ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .border(1.5.dp, md_theme_light_primary, RoundedCornerShape(8.dp))
-                                .background(Color.White, RoundedCornerShape(8.dp))
-                                .clickable { onEditItem(schedule) }
-                                .padding(12.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = schedule.isCompleted,
-                                    onCheckedChange = { isChecked ->
-                                        viewModel.toggleScheduleStatus(schedule, isChecked)
-                                    },
-                                    modifier = Modifier.padding(end = 8.dp)
-                                )
-
-                                Text(
-                                    text = schedule.text,
-                                    fontSize = 24.sp,
-                                    modifier = Modifier.weight(1f),
-                                    style = androidx.compose.ui.text.TextStyle(
-                                        textDecoration = if (schedule.isCompleted) {
-                                            androidx.compose.ui.text.style.TextDecoration.LineThrough
-                                        } else {
-                                            androidx.compose.ui.text.style.TextDecoration.None
-                                        }
-                                    )
-                                )
-
-                                Text(text = schedule.time, fontSize = 20.sp, color = Color.DarkGray)
-                            }
-                        }
-                    }
-                }
-
-                item { Spacer(modifier = Modifier.height(100.dp)) }
-            }
+            Text(text = schedule.time, fontSize = 20.sp, color = Color.DarkGray)
         }
     }
 }
@@ -404,3 +446,4 @@ fun ViewToggleButton(onListClick: () -> Unit, onCalendarClick: () -> Unit) {
         }
     }
 }
+
