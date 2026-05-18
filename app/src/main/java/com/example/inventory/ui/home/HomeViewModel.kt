@@ -75,7 +75,6 @@ class HomeViewModel(
         _uiState.update { it.copy(
             showInputBox = true,
             editingItem = null,
-            selectedCategory = ""
         ) }
     }
 
