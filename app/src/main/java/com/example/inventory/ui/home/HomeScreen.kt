@@ -40,6 +40,7 @@ import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.md_theme_light_primary
 import com.example.inventory.updateOngoingTaskCountNotification
+import com.example.inventory.cancelTodoAlarm
 import java.text.SimpleDateFormat
 import java.util.Locale
 import androidx.compose.material3.FilterChip
@@ -338,15 +339,28 @@ fun HomeScreen(
                         val taskTimeMillis = convertDateTimeToMillis(date, time)
                         if (taskTimeMillis != null) {
                             val idForAlarm = item?.id ?: taskTimeMillis.hashCode()
-                            scheduleTodoAlarm(
-                                context = context,
-                                taskId = idForAlarm,
-                                taskTitle = text,
-                                taskTimeMillis = taskTimeMillis
-                            )
+                            // item?.isCompleted == true の時は予約しない（ガードをかける）
+                            if (item?.isCompleted != true) {
+                                scheduleTodoAlarm(
+                                    context = context,
+                                    taskId = idForAlarm,
+                                    taskTitle = text,
+                                    taskTimeMillis = taskTimeMillis
+                                )
+                            } else {
+                                // 💡 すでに完了しているタスクを編集・保存した場合は、念のため古いアラームを確実に消去しておく
+                                cancelTodoAlarm(
+                                    context = context,
+                                    taskId = idForAlarm,
+                                    taskTitle = text
+                                )
+                            }
                         }
                         viewModel.onDismissInputBox()
                     },
+
+
+
                     onDelete = uiState.editingItem?.let { item ->
                         { viewModel.deleteItem(item) }
                     },
