@@ -12,15 +12,25 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import com.example.inventory.R
 
+// カテゴリPullDown
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.ui.Modifier
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleInputDialog(
     onDismiss: () -> Unit,
-    onSave: (String, String, String) -> Unit,
+    onSave: (String, String, String, String) -> Unit,
     onDelete: (() -> Unit)? = null,
     onSelectDate: () -> Unit,
     onSelectTime: () -> Unit,
+    onSelectCategory: (String) -> Unit,
     selectedDate: String,
     selectedTime: String,
+    selectedCategory: String,
     initialText: String = ""
 ) {
 
@@ -34,6 +44,8 @@ fun ScheduleInputDialog(
     // 入力チェック
     val isFormValid = text.isNotBlank() && selectedDate.isNotBlank() && selectedTime.isNotBlank()
 
+// ---------- バック ---------- //
+
     AlertDialog(
         onDismissRequest = { },
         confirmButton = {
@@ -42,7 +54,7 @@ fun ScheduleInputDialog(
 
                     // 保存出来たら閉じる
                     if (isFormValid) {
-                        onSave(text, selectedDate, selectedTime)
+                        onSave(text, selectedDate, selectedTime, selectedCategory)
                         onDismiss()
 
                     // 未入力
@@ -75,8 +87,14 @@ fun ScheduleInputDialog(
                 }
             }
         },
+
+// ---------- フロント ---------- //
+
         text = {
             Column {
+
+                var expanded by remember { mutableStateOf(false) }
+                val categories = listOf("仕事", "プライベート", "その他")
 
                 OutlinedTextField(
                     value = text,
@@ -101,10 +119,45 @@ fun ScheduleInputDialog(
                     )
                 }
 
-                // ✨ showErrorがtrueのときだけエラー文を表示！
+                // ----- カテゴリプルダウン ----- //
+
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier.menuAnchor(),
+                        readOnly = true,
+                        value = selectedCategory,
+                        onValueChange = {},
+                        label = { Text("カテゴリー") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        categories.forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(text = category) },
+                                onClick = {
+                                    onSelectCategory(category)
+                                    expanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+
+
+
+                // showErrorがtrueのときエラー表示
                 if (showError) {
                     Text(
-                        text = "日付・時間・予定をすべて入力してください",
+                        text = "すべて入力・選択してください",
                         color = androidx.compose.ui.graphics.Color.Red,
                         fontSize = 13.sp
                     )

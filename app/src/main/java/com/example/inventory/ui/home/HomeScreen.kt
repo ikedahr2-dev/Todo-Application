@@ -64,7 +64,7 @@ fun HomeScreen(
     var selectedDate by remember { mutableStateOf("") }
     var selectedTime by remember { mutableStateOf("") }
     var showCalendar by remember { mutableStateOf(false) }
-
+    val selectedCategory = uiState.selectedCategory ?: ""
     Scaffold(
         //modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         bottomBar = {
@@ -135,12 +135,12 @@ fun HomeScreen(
                 ScheduleInputDialog(
                     initialText = uiState.editingItem?.text ?: "",
                     onDismiss = { viewModel.onDismissInputBox() },
-                    onSave = { text, date, time ->
+                    onSave = { text, date, time, category ->
                         val item = uiState.editingItem
                         if (item != null) {
-                            viewModel.updateItem(item, text, date, time)
+                            viewModel.updateItem(item, text, date, time, category)
                         } else {
-                            viewModel.addText(text, date, time)
+                            viewModel.addText(text, date, time, category)
                         }
 
                         // アラーム予約ロジック
@@ -163,6 +163,7 @@ fun HomeScreen(
                     onSelectTime = { showTimePicker = true },
                     selectedDate = selectedDate,
                     selectedTime = selectedTime,
+
                 )
             }
 

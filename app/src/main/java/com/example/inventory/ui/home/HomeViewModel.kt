@@ -16,8 +16,8 @@ data class HomeUiState(
     val scheduleList: List<Schedule> = listOf(),
     val showDatePicker: Boolean = false,
     val showInputBox: Boolean = false,
-    val editingItem: Schedule? = null
-
+    val editingItem: Schedule? = null,
+    val selectedCategory: String = ""
 )
 
 class HomeViewModel(
@@ -51,11 +51,16 @@ class HomeViewModel(
     private var _editingItem = mutableStateOf<Schedule?>(null)
     val editingItem: State<Schedule?> = _editingItem
 
+    fun onSelectCategory(category: String) {
+        _uiState.update { it.copy(selectedCategory = category) }
+    }
     fun onAddClick() {
         _editingItem.value = null
         _uiState.update { it.copy(
             showInputBox = true,
-            editingItem = null) }
+            editingItem = null,
+            selectedCategory = ""
+        ) }
     }
 
     fun onDismissInputBox() {
@@ -63,9 +68,9 @@ class HomeViewModel(
         _uiState.update { it.copy(showInputBox = false) }
     }
 
-    fun addText(text: String, date: String, time: String) {
+    fun addText(text: String, date: String, time: String, category: String) {
         viewModelScope.launch {
-            val newSchedule = Schedule(text = text, date = date, time = time)
+            val newSchedule = Schedule(text = text, date = date, time = time, category = category)
             schedulesRepository.insertSchedule(newSchedule)
             onDismissInputBox()
         }
@@ -75,12 +80,14 @@ class HomeViewModel(
         _editingItem.value = schedule
         _uiState.update { it.copy(
             showInputBox = true,
-            editingItem = schedule) }
+            editingItem = schedule,
+            selectedCategory = schedule.category
+        ) }
     }
 
-    fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String) {
+    fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String, newCategory: String) {
         viewModelScope.launch {
-            val updatedSchedule = schedule.copy(text = newText, date = newDate, time = newTime)
+            val updatedSchedule = schedule.copy(text = newText, date = newDate, time = newTime, category = newCategory)
             schedulesRepository.updateSchedule(updatedSchedule)
             onDismissInputBox()
         }
