@@ -21,9 +21,6 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                     val allItems = database.scheduleDao().getAllSchedule().first()
                     val currentTime = System.currentTimeMillis()
 
-                    // 💡【バグ修正】ここで古いデータを使って通知を出すと件数が巻き戻るため削除しました。
-                    // 常駐通知の復活は、InventoryApplication.kt が最新の正しいデータで行ってくれます。
-
                     // 未来のアラームの再予約ループだけを残します
                     for (item in allItems) {
                         val taskTimeMillis = convertDateTimeToMillis(item.date, item.time)
@@ -67,7 +64,7 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                         val updated = currentSchedule.copy(isCompleted = true)
                         dao.update(updated)
 
-                        // 💡【バグ修正】更新後の「最新のデータベース」から全リストをもう一度取り直して数える！
+                        // 更新後の「最新のデータベース」から全リストをもう一度取り直して数える
                         val latestItems = dao.getAllSchedule().first()
                         val uncompletedCount = latestItems.count { !it.isCompleted }
 
@@ -77,8 +74,12 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                             uncompletedCount = uncompletedCount
                         )
 
-                        // アラーム設定自体もキャンセルして消す
-                        cancelTodoAlarm(context, taskId)
+                        // アラーム設定自体もキャンセルして消す（変数名を currentSchedule に修正）
+                        cancelTodoAlarm(
+                            context = context,
+                            taskId = taskId,
+                            taskTitle = currentSchedule.text
+                        )
 
                         // タップされた通知バナー自体を通知欄から消去する
                         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

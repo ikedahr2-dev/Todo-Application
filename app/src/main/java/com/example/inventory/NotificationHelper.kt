@@ -22,7 +22,7 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         return
     }
 
-    // 💡【2番の追加コード】タップしたときに起動する画面（MainActivity）を指定
+    // タップしたときに起動する画面（MainActivity）を指定
     val activityIntent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
     }
@@ -35,7 +35,7 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    // ★【ここを追加】通知の「完了」ボタンを押したときに Receiver を呼び出すためのインテント
+    // 通知の「完了」ボタンを押したときに Receiver を呼び出すためのインテント
     val completeIntent = Intent(context, TodoAlarmReceiver::class.java).apply {
         action = "com.example.inventory.ACTION_COMPLETE_TASK"
         putExtra("TODO_ID", notificationId) // タスクIDを渡す
@@ -56,7 +56,7 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         .setDefaults(NotificationCompat.DEFAULT_ALL)
         .setContentIntent(activityPendingIntent) //タップした時の動きを登録
         .setAutoCancel(true) //タップされたら自動的に通知を消す
-        // ★【ここを追加】通知に「完了」ボタンを設置
+        // 通知に「完了」ボタンを設置
         .addAction(
             android.R.drawable.ic_secure, // チェックマークのアイコン
             "完了",                               // ボタンのテキスト
@@ -83,7 +83,7 @@ fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTime
 
     val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
         putExtra("TODO_TITLE", "【5分前】タスクの時間です")
-        putExtra("TODO_CONTENT", taskTitle)
+        putExtra("TODO_CONTENT", taskTitle) // ★これが消去側にも絶対に必要です
         putExtra("TODO_ID", taskId)
     }
 
@@ -119,10 +119,16 @@ fun convertDateTimeToMillis(dateString: String, timeString: String): Long? {
     }
 }
 
-// 4. アラームをキャンセルする関数（★3番の機能を追加）
-fun cancelTodoAlarm(context: Context, taskId: Int) {
+// 4. アラームをキャンセルする関数（予約時とインテントの中身を完全に一致させる修正）
+fun cancelTodoAlarm(context: Context, taskId: Int, taskTitle: String) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val intent = Intent(context, TodoAlarmReceiver::class.java)
+
+    // 💡 予約時（scheduleTodoAlarm）のインテントと、中身の「引き出しの数や文字」を完全に同一にします
+    val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
+        putExtra("TODO_TITLE", "【5分前】タスクの時間です")
+        putExtra("TODO_CONTENT", taskTitle) // ★ここにも同じ文字を詰めることで、OSが同一アラームだと認識します
+        putExtra("TODO_ID", taskId)
+    }
 
     val pendingIntent = PendingIntent.getBroadcast(
         context,
@@ -130,9 +136,12 @@ fun cancelTodoAlarm(context: Context, taskId: Int) {
         intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
+
     alarmManager.cancel(pendingIntent)
+    pendingIntent.cancel()
 }
-//未完了タスク数を常駐通知として表示・更新する関数
+
+// 未完了タスク数を常駐通知として表示・更新する関数
 fun updateOngoingTaskCountNotification(context: Context, uncompletedCount: Int) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)

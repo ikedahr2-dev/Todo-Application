@@ -115,27 +115,32 @@ class HomeViewModel(
             onDismissInputBox()
         }
     }
-    //チェックボックスの切り替え処理
     // チェックボックスの切り替え処理
     fun toggleScheduleStatus(schedule: Schedule, isChecked: Boolean) {
         viewModelScope.launch {
-            // 1. データベース上の完了状態を更新
+            // 1. 完了状態を書き換えたデータを作成
             val updatedSchedule = schedule.copy(isCompleted = isChecked)
+
+            // 2. 先にデータベースを更新して確定させる
             schedulesRepository.updateSchedule(updatedSchedule)
 
-            // 2. もし完了（チェックON）にされたら、5分前アラームをキャンセルする
+            // 3. データベースの更新が反映されるまで少し待機（順序を上に移動）
+            kotlinx.coroutines.delay(150)
+
+            // 4. データベース書き換え完了後にアラームを安全に消去する
+            // 画面側の自動登録ロジックが動いた後に、上から上書きして確実にアラームを消し去ります
             if (isChecked) {
-                cancelTodoAlarm(context = application.applicationContext, taskId = schedule.id)
+                // ★引数に schedule.text を追記して、予約時と全く同じタイトル情報を手渡します
+                cancelTodoAlarm(
+                    context = application.applicationContext,
+                    taskId = schedule.id,
+                    taskTitle = schedule.text
+                )
             }
 
-            // ★【ここを修正】一瞬だけデータベースの書き換え完了を待つ（100ミリ秒）
-            kotlinx.coroutines.delay(100)
-
-            // 3. 最新のリストから「isCompleted == false」の未完了タスクだけを正しくカウントする
+            // 5. 最新のリストから未完了タスクだけをカウントして常駐通知を更新
             val currentList = uiState.value.scheduleList
             val uncompletedCount = currentList.count { !it.isCompleted }
-
-            // 4. 正しい件数で常駐通知を更新
             updateOngoingTaskCountNotification(
                 context = application.applicationContext,
                 uncompletedCount = uncompletedCount
