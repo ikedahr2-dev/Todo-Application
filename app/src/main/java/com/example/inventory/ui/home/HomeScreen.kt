@@ -163,7 +163,8 @@ fun HomeScreen(
                     onSelectTime = { showTimePicker = true },
                     selectedDate = selectedDate,
                     selectedTime = selectedTime,
-
+                    selectedCategory = selectedCategory,
+                    onSelectCategory = { viewModel.onSelectCategory(it) }
                 )
             }
 
