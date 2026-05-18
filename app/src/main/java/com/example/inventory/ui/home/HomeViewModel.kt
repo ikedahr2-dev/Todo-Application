@@ -36,10 +36,13 @@ class HomeViewModel(
             // 「trueではないもの（＝未完了）」だけ数えるように書き換えます
             val uncompletedCount = dbList.count { it.isCompleted == false }
 
-            updateOngoingTaskCountNotification(
-                context = application.applicationContext,
-                uncompletedCount = uncompletedCount
-            )
+            //データがちゃんと入っているときだけ通知を更新する
+            if (dbList.isNotEmpty()) {
+                updateOngoingTaskCountNotification(
+                    context = application.applicationContext,
+                    uncompletedCount = uncompletedCount
+                )
+            }
 
             val filteredList =
                 dbList.filter { schedule ->

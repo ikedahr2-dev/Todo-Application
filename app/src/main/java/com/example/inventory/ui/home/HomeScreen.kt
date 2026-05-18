@@ -67,7 +67,8 @@ fun HomeScreen(
     val context = LocalContext.current
     //リストに変化があったら自動で常駐通知の件数を更新する
     LaunchedEffect(uiState.scheduleList) {
-        val uncompletedCount = uiState.scheduleList.size
+        //修正：リストの全件数（size）ではなく、まだ完了していない(isCompletedがfalseの)タスクだけを正しく数える
+        val uncompletedCount = uiState.scheduleList.count { !it.isCompleted }
         updateOngoingTaskCountNotification(context, uncompletedCount)
     }
     var showDatePicker by remember { mutableStateOf(false) }
