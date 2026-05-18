@@ -12,5 +12,9 @@ data class Schedule(
     val date: String,
 
     val data: Long = System.currentTimeMillis(), //日付の更新
-    val category: String = "すべて"
+    val category: String = "すべて",
+
+    //デフォルトは未完了（false）にしてる
+    val isCompleted: Boolean = false
+
 )

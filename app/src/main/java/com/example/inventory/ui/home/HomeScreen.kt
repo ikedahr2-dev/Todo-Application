@@ -205,7 +205,8 @@ fun HomeScreen(
 private fun HomeBody(
     scheduleList: List<Schedule>,
     onEditItem: (Schedule) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     // 日付ごとにグループ化
     val groupedSchedules = scheduleList
@@ -249,12 +250,37 @@ private fun HomeBody(
                             .padding(12.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = schedule.text, fontSize = 24.sp, modifier = Modifier.weight(1f))
+                            // ★【ここを追加】完了・未完了のチェックボックス
+                            Checkbox(
+                                checked = schedule.isCompleted,
+                                onCheckedChange = { isChecked ->
+                                    // 先ほど ViewModel に追加した関数を呼び出す
+                                    viewModel.toggleScheduleStatus(schedule, isChecked)
+                                },
+                                modifier = Modifier.padding(end = 8.dp) // 文字との間に少し隙間を空ける
+                            )
+
+                            // 【元からあるテキスト】完了時は打ち消し線を引くようにアレンジ
+                            Text(
+                                text = schedule.text,
+                                fontSize = 24.sp,
+                                modifier = Modifier.weight(1f),
+                                style = androidx.compose.ui.text.TextStyle(
+                                    textDecoration = if (schedule.isCompleted) {
+                                        androidx.compose.ui.text.style.TextDecoration.LineThrough
+                                    } else {
+                                        androidx.compose.ui.text.style.TextDecoration.None
+                                    }
+                                )
+                            )
+
+                            // 【元からあるテキスト】時間
                             Text(text = schedule.time, fontSize = 20.sp, color = Color.DarkGray)
                         }
                     }
                 }
             }
+
             // スクロール用余白
             item { Spacer(modifier = Modifier.height(100.dp)) }
         }
