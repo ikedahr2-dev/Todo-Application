@@ -42,11 +42,11 @@ import com.example.inventory.ui.theme.md_theme_light_primary
 import com.example.inventory.updateOngoingTaskCountNotification
 import java.text.SimpleDateFormat
 import java.util.Locale
-
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.focus.focusModifier
+import androidx.compose.ui.graphics.colorspace.WhitePoint
 
 object HomeDestination : NavigationDestination {
     override val route = "home"

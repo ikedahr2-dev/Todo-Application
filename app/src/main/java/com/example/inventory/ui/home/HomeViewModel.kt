@@ -53,7 +53,7 @@ class HomeViewModel(
                     }
                 }
 
-            currentUiState.copy(scheduleList = dbList)
+            currentUiState.copy(scheduleList = filteredList)
 
         }
         .stateIn(
