@@ -36,6 +36,10 @@ import com.example.inventory.updateOngoingTaskCountNotification
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+
 object HomeDestination : NavigationDestination {
     override val route = "home"
     override val titleRes = R.string.app_name
@@ -203,6 +207,7 @@ fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeBody(
     scheduleList: List<Schedule>,
@@ -215,76 +220,112 @@ private fun HomeBody(
         .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
         .groupBy { it.date }
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp)
+    // カテゴリ別
+    var selectedCategory by remember { mutableStateOf("すべて") }
+    val categories = listOf("すべて", "仕事", "プライベート", "その他")
+
+    Column(
+        modifier = modifier.fillMaxSize()
     ) {
-        if (scheduleList.isEmpty()) {
-            item {
-                Text(
-                    text = stringResource(R.string.no_item_description),
-                    modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.titleLarge
+
+        // ----- ナビゲーションバー ----- //
+
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+            modifier = Modifier.fillMaxWidth()
+        ){
+            items(categories) { category ->
+
+                FilterChip(
+                    selected = (category == selectedCategory),
+                    onClick = { selectedCategory = category },
+                    label = { Text(category) },
+                    shape = CircleShape,   // 形
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = Color.White
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        borderColor = MaterialTheme.colorScheme.primary
+                    )
                 )
             }
-        } else {
-            groupedSchedules.forEach { (date, schedules) ->
-                // --- 日付の見出し (例: // 2026/05/15 の予定) ---
+        }
+
+        // ----- 予定閲覧 ----- //
+
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 0.dp)
+        ) {
+            if (scheduleList.isEmpty()) {
                 item {
                     Text(
-                        text = "// $date の予定",
-                        color = md_theme_light_primary,
-                        fontSize = 16.sp,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                        text = stringResource(R.string.no_item_description),
+                        modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleLarge
                     )
                 }
+            } else {
+                groupedSchedules.forEach { (date, schedules) ->
+                    // --- 日付の見出し (例: // 2026/05/15 の予定) ---
+                    item {
+                        Text(
+                            text = "// $date の予定",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 16.sp,
+                            modifier = Modifier.padding(top = 0.dp, bottom = 4.dp)
+                        )
+                    }
 
-                // --- その日の予定リスト ---
-                items(schedules) { schedule ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .border(1.5.dp, md_theme_light_primary, RoundedCornerShape(8.dp))
-                            .background(Color.White, RoundedCornerShape(8.dp))
-                            .clickable { onEditItem(schedule) }
-                            .padding(12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // ★【ここを追加】完了・未完了のチェックボックス
-                            Checkbox(
-                                checked = schedule.isCompleted,
-                                onCheckedChange = { isChecked ->
-                                    // 先ほど ViewModel に追加した関数を呼び出す
-                                    viewModel.toggleScheduleStatus(schedule, isChecked)
-                                },
-                                modifier = Modifier.padding(end = 8.dp) // 文字との間に少し隙間を空ける
-                            )
-
-                            // 【元からあるテキスト】完了時は打ち消し線を引くようにアレンジ
-                            Text(
-                                text = schedule.text,
-                                fontSize = 24.sp,
-                                modifier = Modifier.weight(1f),
-                                style = androidx.compose.ui.text.TextStyle(
-                                    textDecoration = if (schedule.isCompleted) {
-                                        androidx.compose.ui.text.style.TextDecoration.LineThrough
-                                    } else {
-                                        androidx.compose.ui.text.style.TextDecoration.None
-                                    }
+                    // --- その日の予定リスト ---
+                    items(schedules) { schedule ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .border(1.5.dp, md_theme_light_primary, RoundedCornerShape(8.dp))
+                                .background(Color.White, RoundedCornerShape(8.dp))
+                                .clickable { onEditItem(schedule) }
+                                .padding(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // ★【ここを追加】完了・未完了のチェックボックス
+                                Checkbox(
+                                    checked = schedule.isCompleted,
+                                    onCheckedChange = { isChecked ->
+                                        // 先ほど ViewModel に追加した関数を呼び出す
+                                        viewModel.toggleScheduleStatus(schedule, isChecked)
+                                    },
+                                    modifier = Modifier.padding(end = 8.dp) // 文字との間に少し隙間を空ける
                                 )
-                            )
 
-                            // 【元からあるテキスト】時間
-                            Text(text = schedule.time, fontSize = 20.sp, color = Color.DarkGray)
+                                // 【元からあるテキスト】完了時は打ち消し線を引くようにアレンジ
+                                Text(
+                                    text = schedule.text,
+                                    fontSize = 24.sp,
+                                    modifier = Modifier.weight(1f),
+                                    style = androidx.compose.ui.text.TextStyle(
+                                        textDecoration = if (schedule.isCompleted) {
+                                            androidx.compose.ui.text.style.TextDecoration.LineThrough
+                                        } else {
+                                            androidx.compose.ui.text.style.TextDecoration.None
+                                        }
+                                    )
+                                )
+
+                                // 【元からあるテキスト】時間
+                                Text(text = schedule.time, fontSize = 20.sp, color = Color.DarkGray)
+                            }
                         }
                     }
                 }
-            }
 
-            // スクロール用余白
-            item { Spacer(modifier = Modifier.height(100.dp)) }
+                // スクロール用余白
+                item { Spacer(modifier = Modifier.height(100.dp)) }
+            }
         }
     }
 }
