@@ -46,9 +46,9 @@ import java.util.Locale
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.ui.focus.focusModifier
-import androidx.compose.ui.graphics.colorspace.WhitePoint
-
+import androidx.compose.foundation.lazy.LazyListScope
+import kotlin.collections.component1
+import kotlin.collections.component2
 object HomeDestination : NavigationDestination {
     override val route = "home"
     override val titleRes = R.string.app_name
@@ -148,7 +148,15 @@ fun HomeScreen(
                         items(categories) { category ->
                             FilterChip(
                                 selected = (category == selectedCategoryTab),
-                                onClick = { selectedCategoryTab = category },
+                                onClick = {
+                                    selectedCategoryTab = category
+
+                                    if (category == "すべて") {
+                                        viewModel.onSelectCategory("")
+                                    } else {
+                                        viewModel.onSelectCategory(category)
+                                    } },
+
                                 label = { Text(text = category, fontSize = 16.sp) },
                                 modifier = Modifier
                                     .padding(vertical = 16.dp)
@@ -242,83 +250,44 @@ fun HomeScreen(
                                 )
                             }
                         } else {
-                            // 未完了の予定を日付毎に描画
-                            groupedUncompleted.forEach { (date, schedules) ->
-                                item {
-                                    Text(
-                                        text = "$date の予定",
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontSize = 16.sp,
-                                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-                                    )
-                                }
+                            if (selectedCategory != "仕事" && selectedCategory != "プライベート" && selectedCategory != "その他") {
 
-                                items(schedules) { schedule ->
-                                    ScheduleItemRow(
-                                        schedule = schedule,
-                                        onEditItem = {
-                                            selectedDate = schedule.date
-                                            selectedTime = schedule.time
-                                            viewModel.onEditSavedItem(schedule)
-                                        },
-                                        viewModel = viewModel
-                                    )
-                                }
-                            }
-
-                            // 完了した予定の描画エリア
-                            if (completedSchedules.isNotEmpty()) {
-                                item {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(top = 24.dp, bottom = 8.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "完了した予定",
-                                            color = Color.Gray,
-                                            fontSize = 16.sp
-                                        )
-
-                                        // 予定を一括削除するボタン
-                                        Button(
-                                            onClick = { viewModel.deleteCompletedSchedules() },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C)),
-                                            shape = RoundedCornerShape(4.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                            modifier = Modifier.height(32.dp)
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("完了した予定を一括削除", fontSize = 12.sp, color = Color.White)
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Icon(
-                                                    imageVector = Icons.Default.Delete,
-                                                    contentDescription = null,
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                            }
-                                        }
+                                scheduleMainList(
+                                    groupedUncompleted = groupedUncompleted,
+                                    completedSchedules = completedSchedules,
+                                    viewModel = viewModel,
+                                    onEditSavedItem = { schedule ->
+                                        selectedDate = schedule.date
+                                        selectedTime = schedule.time
+                                        viewModel.onEditSavedItem(schedule)
                                     }
-                                }
+                                )
 
-                                items(completedSchedules) { schedule ->
-                                    ScheduleItemRow(
-                                        schedule = schedule,
-                                        onEditItem = {
-                                            selectedDate = schedule.date
-                                            selectedTime = schedule.time
-                                            viewModel.onEditSavedItem(schedule)
-                                        },
-                                        viewModel = viewModel
-                                    )
-                                }
+                            } else {
+
+                                val filteredSchedules = uiState.scheduleList.filter { it.category == selectedCategory }
+
+                                val filteredUncompletedGroup = filteredSchedules
+                                    .filter { !it.isCompleted }
+                                    .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
+                                    .groupBy { it.date }
+
+                                val filteredCompletedList = filteredSchedules.filter { it.isCompleted }
+
+                                scheduleMainList(
+                                    groupedUncompleted = filteredUncompletedGroup,
+                                    completedSchedules = filteredCompletedList,
+                                    viewModel = viewModel,
+                                    onEditSavedItem = { schedule ->
+                                        selectedDate = schedule.date
+                                        selectedTime = schedule.time
+                                        viewModel.onEditSavedItem(schedule)
+                                    }
+                                )
                             }
-
-                            item { Spacer(modifier = Modifier.height(100.dp)) }
                         }
+
+                        item { Spacer(modifier = Modifier.height(100.dp)) }
                     }
                 }
             }
@@ -447,6 +416,75 @@ private fun ScheduleItemRow(
             )
 
             Text(text = schedule.time, fontSize = 20.sp, color = Color.DarkGray)
+        }
+    }
+}
+
+// ---------- 未完・完了 ---------- //
+private fun LazyListScope.scheduleMainList(
+    groupedUncompleted: Map<String, List<Schedule>>,
+    completedSchedules: List<Schedule>,
+    viewModel: HomeViewModel,
+    onEditSavedItem: (Schedule) -> Unit
+) {
+
+    groupedUncompleted.forEach { (date, schedules) ->
+        item {
+            Text(
+                text = "$date の予定",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+            )
+        }
+
+        items(schedules) { schedule ->
+            ScheduleItemRow(
+                schedule = schedule,
+                onEditItem = { onEditSavedItem(schedule) },
+                viewModel = viewModel
+            )
+        }
+    }
+
+    if (completedSchedules.isNotEmpty()) {
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "完了した予定", color = Color.Gray, fontSize = 16.sp)
+
+                Button(
+                    onClick = { viewModel.deleteCompletedSchedules() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C)),
+                    shape = RoundedCornerShape(4.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("完了した予定を一括削除", fontSize = 12.sp, color = Color.White)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        items(completedSchedules) { schedule ->
+            ScheduleItemRow(
+                schedule = schedule,
+                onEditItem = { onEditSavedItem(schedule) },
+                viewModel = viewModel
+            )
         }
     }
 }
