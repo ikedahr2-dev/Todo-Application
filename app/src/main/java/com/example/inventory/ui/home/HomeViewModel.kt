@@ -115,6 +115,29 @@ class HomeViewModel(
             onDismissInputBox()
         }
     }
+
+    fun deleteCompletedSchedules() {
+        viewModelScope.launch {
+            val completedList = uiState.value.scheduleList.filter { it.isCompleted }
+
+            completedList.forEach { schedule ->
+                schedulesRepository.deleteSchedule(schedule)
+
+                cancelTodoAlarm(
+                    context = application.applicationContext,
+                    taskId = schedule.id,
+                    taskTitle = schedule.text
+                )
+            }
+
+            val uncompletedCount = uiState.value.scheduleList.count { !it.isCompleted }
+            updateOngoingTaskCountNotification(
+                context = application.applicationContext,
+                uncompletedCount = uncompletedCount
+            )
+        }
+    }
+
     // チェックボックスの切り替え処理
     fun toggleScheduleStatus(schedule: Schedule, isChecked: Boolean) {
         viewModelScope.launch {
