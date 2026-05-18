@@ -4,22 +4,29 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,6 +46,7 @@ import java.util.Locale
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.focus.focusModifier
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
@@ -59,7 +67,6 @@ fun HomeScreen(
     val context = LocalContext.current
     //リストに変化があったら自動で常駐通知の件数を更新する
     LaunchedEffect(uiState.scheduleList) {
-        // 現在のリストの全件数を未完了数としてカウント（もし完了フラグ等があれば filter { !it.isCompleted } などにしてください）
         val uncompletedCount = uiState.scheduleList.size
         updateOngoingTaskCountNotification(context, uncompletedCount)
     }
@@ -70,10 +77,9 @@ fun HomeScreen(
     var showCalendar by remember { mutableStateOf(false) }
     val selectedCategory = uiState.selectedCategory ?: ""
     Scaffold(
-        //modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         bottomBar = {
             ViewToggleButton(
-                onListClick = { showCalendar = false; /*selectedDate = "onListClick"*/ },
+                onListClick = { showCalendar = false; },
                 onCalendarClick = { showCalendar = true }
             )
         },
@@ -122,16 +128,111 @@ fun HomeScreen(
                     )
                 }
             } else {
-                HomeBody(
-                    scheduleList = uiState.scheduleList,
-                    onEditItem = { schedule ->
-                        // 編集時に日付と時間を同期
-                        selectedDate = schedule.date
-                        selectedTime = schedule.time
-                        viewModel.onEditSavedItem(schedule)
-                    },
-                    modifier = Modifier.padding(innerPadding)
-                )
+                Column(
+                    modifier = Modifier
+                        .padding(innerPadding)
+                        .fillMaxSize()
+                ) {
+
+                    var selectedCategoryTab by remember { mutableStateOf("すべて") }
+                    val categories = listOf("すべて", "仕事", "プライベート", "その他")
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ){
+                        items(categories) { category ->
+
+                            FilterChip(
+                                selected = (category == selectedCategoryTab),
+                                onClick = { selectedCategoryTab = category },
+                                label = {
+                                    Text(
+                                        text = category,
+                                        fontSize = 16.sp
+                                    )
+                                },
+                                modifier = Modifier
+                                    .padding(vertical = 16.dp)
+                                    .height(40.dp),
+                                shape = CircleShape,   // 形
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = Color.White
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    borderColor = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                        }
+                    }
+
+
+                    val strokeColor = md_theme_light_primary
+                    val interactionSource = remember { MutableInteractionSource() }
+
+                    BasicTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = { viewModel.updateSearchQuery(it) },
+                        interactionSource = interactionSource,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 16.sp),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 0.dp)
+                            // 点線枠を描画するカスタム Modifier
+                            .drawWithContent {
+                                drawContent()
+                                val stroke = Stroke(
+                                    width = 1.5.dp.toPx(),
+                                    pathEffect = PathEffect.dashPathEffect(
+                                        intervals = floatArrayOf(12.dp.toPx(), 8.dp.toPx()),
+                                        phase = 0f
+                                    )
+                                )
+                                drawRoundRect(
+                                    color = strokeColor,
+                                    style = stroke,
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
+                                )
+                            },
+                        decorationBox = { innerTextField ->
+                            OutlinedTextFieldDefaults.DecorationBox(
+                                value = uiState.searchQuery,
+                                innerTextField = innerTextField,
+                                enabled = true,
+                                singleLine = true,
+                                visualTransformation = VisualTransformation.None,
+                                interactionSource = interactionSource,
+                                placeholder = {
+                                    Text(
+                                        text = "予定を検索",
+                                        color = strokeColor.copy(alpha = 0.6f),
+                                        fontSize = 16.sp
+                                    )
+                                },
+                                contentPadding = PaddingValues(
+                                    horizontal = 12.dp, // 左右の隙間（好みに応じて 4.dp などに減らしてもOK）
+                                    vertical = 6.dp     // 上下の隙間（ここを減らすと枠と文字がギュッと縮まります）
+                                ),
+                                container = {
+                                    // デフォルトのコンテナ枠線を表示させないために何も描画しない
+                                }
+                            )
+                        }
+                    )
+
+                    HomeBody(
+                        scheduleList = uiState.scheduleList,
+                        onEditItem = { schedule ->
+                            selectedDate = schedule.date
+                            selectedTime = schedule.time
+                            viewModel.onEditSavedItem(schedule)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
 
             // 入力ダイアログ
@@ -215,43 +316,13 @@ private fun HomeBody(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
-    // 日付ごとにグループ化
     val groupedSchedules = scheduleList
         .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
         .groupBy { it.date }
 
-    // カテゴリ別
-    var selectedCategory by remember { mutableStateOf("すべて") }
-    val categories = listOf("すべて", "仕事", "プライベート", "その他")
-
     Column(
         modifier = modifier.fillMaxSize()
     ) {
-
-        // ----- ナビゲーションバー ----- //
-
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-            modifier = Modifier.fillMaxWidth()
-        ){
-            items(categories) { category ->
-
-                FilterChip(
-                    selected = (category == selectedCategory),
-                    onClick = { selectedCategory = category },
-                    label = { Text(category) },
-                    shape = CircleShape,   // 形
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = Color.White
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        borderColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-            }
-        }
 
         // ----- 予定閲覧 ----- //
 
@@ -270,17 +341,15 @@ private fun HomeBody(
                 }
             } else {
                 groupedSchedules.forEach { (date, schedules) ->
-                    // --- 日付の見出し (例: // 2026/05/15 の予定) ---
                     item {
                         Text(
-                            text = "// $date の予定",
+                            text = "$date の予定",
                             color = MaterialTheme.colorScheme.primary,
                             fontSize = 16.sp,
-                            modifier = Modifier.padding(top = 0.dp, bottom = 4.dp)
+                            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
                         )
                     }
 
-                    // --- その日の予定リスト ---
                     items(schedules) { schedule ->
                         Box(
                             modifier = Modifier
@@ -292,17 +361,14 @@ private fun HomeBody(
                                 .padding(12.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                // ★【ここを追加】完了・未完了のチェックボックス
                                 Checkbox(
                                     checked = schedule.isCompleted,
                                     onCheckedChange = { isChecked ->
-                                        // 先ほど ViewModel に追加した関数を呼び出す
                                         viewModel.toggleScheduleStatus(schedule, isChecked)
                                     },
-                                    modifier = Modifier.padding(end = 8.dp) // 文字との間に少し隙間を空ける
+                                    modifier = Modifier.padding(end = 8.dp)
                                 )
 
-                                // 【元からあるテキスト】完了時は打ち消し線を引くようにアレンジ
                                 Text(
                                     text = schedule.text,
                                     fontSize = 24.sp,
@@ -316,14 +382,12 @@ private fun HomeBody(
                                     )
                                 )
 
-                                // 【元からあるテキスト】時間
                                 Text(text = schedule.time, fontSize = 20.sp, color = Color.DarkGray)
                             }
                         }
                     }
                 }
 
-                // スクロール用余白
                 item { Spacer(modifier = Modifier.height(100.dp)) }
             }
         }

@@ -17,7 +17,8 @@ data class HomeUiState(
     val showDatePicker: Boolean = false,
     val showInputBox: Boolean = false,
     val editingItem: Schedule? = null,
-    val selectedCategory: String = ""
+    val selectedCategory: String = "",
+    val searchQuery: String = ""
 )
 
 class HomeViewModel(
@@ -40,7 +41,20 @@ class HomeViewModel(
                 uncompletedCount = uncompletedCount
             )
 
+            val filteredList =
+                if (currentUiState.searchQuery.isBlank()) {
+                    dbList
+                } else {
+                    dbList.filter { schedule ->
+                        schedule.text.contains(
+                            currentUiState.searchQuery,
+                            ignoreCase = true
+                        )
+                    }
+                }
+
             currentUiState.copy(scheduleList = dbList)
+
         }
         .stateIn(
             scope = viewModelScope,
@@ -127,6 +141,11 @@ class HomeViewModel(
         }
     }
 
+    fun updateSearchQuery(query: String) {
+        _uiState.update {
+            it.copy(searchQuery = query)
+        }
+    }
 
     companion object {
         private const val TIMEOUT_MILLIS = 5_000L
