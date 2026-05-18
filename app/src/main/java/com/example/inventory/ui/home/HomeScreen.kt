@@ -377,7 +377,7 @@ private fun HomeBody(
                                 fontSize = 16.sp
                             )
 
-                            //一括削除ボタン
+                            //予定を一括削除するボタン
                             Button(
                                 onClick = onDeleteCompletedClick,
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C)),
