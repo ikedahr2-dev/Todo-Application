@@ -35,6 +35,19 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
+    // ★【ここを追加】通知の「完了」ボタンを押したときに Receiver を呼び出すためのインテント
+    val completeIntent = Intent(context, TodoAlarmReceiver::class.java).apply {
+        action = "com.example.inventory.ACTION_COMPLETE_TASK"
+        putExtra("TODO_ID", notificationId) // タスクIDを渡す
+    }
+
+    val completePendingIntent = PendingIntent.getBroadcast(
+        context,
+        notificationId, // ボタン専用の識別ID
+        completeIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
     val builder = NotificationCompat.Builder(context, "todo_notifications")
         .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
         .setContentTitle(title)
@@ -43,6 +56,12 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         .setDefaults(NotificationCompat.DEFAULT_ALL)
         .setContentIntent(activityPendingIntent) //タップした時の動きを登録
         .setAutoCancel(true) //タップされたら自動的に通知を消す
+        // ★【ここを追加】通知に「完了」ボタンを設置
+        .addAction(
+            android.R.drawable.ic_secure, // チェックマークのアイコン
+            "完了",                               // ボタンのテキスト
+            completePendingIntent                 // 押したときに送る電波
+        )
 
     try {
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
