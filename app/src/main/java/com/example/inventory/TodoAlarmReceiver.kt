@@ -3,6 +3,7 @@ package com.example.inventory
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.app.NotificationManager
 import com.example.inventory.data.InventoryDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +45,50 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                 }
             }
             return // 再起動の処理が終わったらここで処理を抜ける
+        }
+
+        // 🌟 通知の「完了」ボタンが押されたときのバックグラウンド処理
+        val action = intent.action
+        val taskId = intent.getIntExtra("TODO_ID", -1)
+
+        if (action == "com.example.inventory.ACTION_COMPLETE_TASK" && taskId != -1) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val database = InventoryDatabase.getDatabase(context)
+                    val dao = database.scheduleDao()
+
+                    // 💡【ここを修正】フリーズを防ぐため、全体リストを1回だけ取得し、その中から対象を探す
+                    val allItems = dao.getAllSchedule().first()
+                    val currentSchedule = allItems.find { it.id == taskId }
+
+                    if (currentSchedule != null) {
+                        // isCompleted フラグを true (完了) にしてデータベースを更新
+                        val updated = currentSchedule.copy(isCompleted = true)
+                        dao.update(updated)
+
+                        // データベースの最新データから未完了数を数え直す（今完了にしたタスクは除外して数える）
+                        val uncompletedCount = allItems.count {
+                            if (it.id == taskId) false else !it.isCompleted
+                        }
+
+                        // 常駐通知の残り件数を最新の数字に更新する
+                        updateOngoingTaskCountNotification(
+                            context = context,
+                            uncompletedCount = uncompletedCount
+                        )
+
+                        // アラーム設定自体もキャンセルして消す
+                        cancelTodoAlarm(context, taskId)
+
+                        // タップされた通知バナー自体を通知欄から消去する
+                        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                        notificationManager.cancel(taskId)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            return // 完了ボタンの処理が終わったらここで抜ける
         }
 
         // 💡 通常の「時間（5分前）になった」ときの通知処理（これまでのコード）
