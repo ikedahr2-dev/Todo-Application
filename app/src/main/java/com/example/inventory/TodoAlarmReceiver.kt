@@ -47,6 +47,8 @@ class TodoAlarmReceiver : BroadcastReceiver() {
 
         // 通知の「完了」ボタンが押されたときのバックグラウンド処理
         val action = intent.action
+
+        // 💡 確実にIDを取得できるように、キー名を統一して取り出します
         val taskId = intent.getIntExtra("TODO_ID", -1)
 
         if (action == "com.example.inventory.ACTION_COMPLETE_TASK" && taskId != -1) {
@@ -64,17 +66,17 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                         val updated = currentSchedule.copy(isCompleted = true)
                         dao.update(updated)
 
-                        // 💡【修正】全件取り直し＆カウントを廃止し、期限切れの未完了数だけを高速に取得
+                        // 期限切れの未完了数だけを高速に取得
                         val currentTime = System.currentTimeMillis()
                         val overdueCount = dao.getOverdueIncompleteTaskCount(currentTime)
 
                         // 常駐通知の残り件数を最新の正しい数字に更新する
                         updateOngoingTaskCountNotification(
                             context = context,
-                            uncompletedCount = overdueCount // 期限切れのカウント数を手渡す
+                            uncompletedCount = overdueCount
                         )
 
-                        // アラーム設定自体もキャンセルして消す（変数名を currentSchedule に修正）
+                        // アラーム設定自体もキャンセルして消す
                         cancelTodoAlarm(
                             context = context,
                             taskId = taskId,
@@ -95,8 +97,12 @@ class TodoAlarmReceiver : BroadcastReceiver() {
         // 通常の「時間（5分前）になった」ときの通知処理
         val title = intent.getStringExtra("TODO_TITLE") ?: "タスクの通知"
         val content = intent.getStringExtra("TODO_CONTENT") ?: "5分前です"
-        val notificationId = intent.getIntExtra("TODO_ID", 1)
 
-        sendTodoNotification(context, notificationId, title, content)
+        // 💡 ここを取り出し、インテントをそのまま引き継ぐように修正
+        val notificationId = intent.getIntExtra("TODO_ID", -1)
+
+        if (notificationId != -1) {
+            sendTodoNotification(context, notificationId, title, content)
+        }
     }
 }
