@@ -341,31 +341,8 @@ fun HomeScreen(
                         } else {
                             viewModel.addText(text, date, time, category, detail)
                         }
-
-                        // アラーム予約ロジック
-                        val taskTimeMillis = convertDateTimeToMillis(date, time)
-                        if (taskTimeMillis != null) {
-                            val idForAlarm = item?.id ?: taskTimeMillis.hashCode()
-                            // item?.isCompleted == true の時は予約しない（ガードをかける）
-                            if (item?.isCompleted != true) {
-                                scheduleTodoAlarm(
-                                    context = context,
-                                    taskId = idForAlarm,
-                                    taskTitle = text,
-                                    taskTimeMillis = taskTimeMillis
-                                )
-                            } else {
-                                // 💡 すでに完了しているタスクを編集・保存した場合は、念のため古いアラームを確実に消去しておく
-                                cancelTodoAlarm(
-                                    context = context,
-                                    taskId = idForAlarm,
-                                    taskTitle = text
-                                )
-                            }
-                        }
                         viewModel.onDismissInputBox()
                     },
-
 
                     onDelete = uiState.editingItem?.let { item ->
                         { viewModel.deleteItem(item) }

@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import android.app.Application
 import com.example.inventory.cancelTodoAlarm
 import com.example.inventory.updateOngoingTaskCountNotification
+import com.example.inventory.scheduleTodoAlarm // 💡5分前アラームの予約関数をインポート
+import com.example.inventory.convertDateTimeToMillis // 💡日時文字列のミリ秒変換関数をインポート
 import com.example.inventory.data.Schedule
 import com.example.inventory.data.SchedulesRepository
 import kotlinx.coroutines.flow.*
@@ -33,9 +35,6 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = schedulesRepository.getAllSchedulesStream()
         .combine(_uiState) { dbList, currentUiState ->
 
-            // 💡【修正】ここでの古い一斉通知コードを削除しました。
-            // これによりバックグラウンド定期更新（WorkManager）との競合（数値のチカチカ）を防ぎます。
-
             val filteredList =
                 dbList.filter { schedule ->
                     val query = currentUiState.searchQuery.trim()
@@ -59,7 +58,12 @@ class HomeViewModel(
     private var _editingItem = mutableStateOf<Schedule?>(null)
     val editingItem: State<Schedule?> = _editingItem
 
-    // 💡【共通処理を追加】期限切れの未完了タスク数だけを数えて通知を最新にする関数
+    // 💡【追加】アプリが起動した瞬間に15分待たずに今すぐ通知を強制更新する初期化処理
+    init {
+        refreshOngoingNotification()
+    }
+
+    // 💡【共通処理】期限切れの未完了タスク数だけを数えて通知を最新にする関数
     private fun refreshOngoingNotification() {
         viewModelScope.launch {
             val currentTime = System.currentTimeMillis()
@@ -99,12 +103,37 @@ class HomeViewModel(
         _uiState.update { it.copy(showInputBox = false) }
     }
 
+    // 🟢 タスク追加（5分前アラーム自動予約付きに修正）
     fun addText(text: String, date: String, time: String, category: String, detail: String) {
         viewModelScope.launch {
-            val newSchedule = Schedule(text = text, date = date, time = time, category = category, detail = detail)
+            // 💡 選択された日時をミリ秒に変換
+            val taskTimeMillis = convertDateTimeToMillis(date, time) ?: System.currentTimeMillis()
+
+            // 💡 変換したミリ秒（taskTimeMillis）をdataフィールドにしっかり格納して保存
+            val newSchedule = Schedule(
+                text = text,
+                date = date,
+                time = time,
+                category = category,
+                detail = detail,
+                data = taskTimeMillis // ⭕ これで未来と過去の判定が正しくなります
+            )
             schedulesRepository.insertSchedule(newSchedule)
+
+            // 💡 保存直後、DBが自動生成した本物のID（確定した背番号）を特定してアラームをセットする
+            val savedList = schedulesRepository.getAllSchedulesStream().first()
+            val savedItem = savedList.find { it.text == text && it.date == date && it.time == time }
+
+            if (savedItem != null && taskTimeMillis > System.currentTimeMillis()) {
+                scheduleTodoAlarm(
+                    context = application.applicationContext,
+                    taskId = savedItem.id, // ⭕ ズレのない本物のIDを使用
+                    taskTitle = text,
+                    taskTimeMillis = taskTimeMillis
+                )
+            }
+
             onDismissInputBox()
-            // 💡タスク追加時に通知をリアルタイム更新
             refreshOngoingNotification()
         }
     }
@@ -120,12 +149,39 @@ class HomeViewModel(
         }
     }
 
+    // 🟢 タスク編集（5分前アラーム自動再予約付きに修正）
     fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String, newCategory: String, newDetail: String) {
         viewModelScope.launch {
-            val updatedSchedule = schedule.copy(text = newText, date = newDate, time = newTime, category = newCategory, detail = newDetail)
+            // 💡 新しく選択された日時をミリ秒に変換
+            val taskTimeMillis = convertDateTimeToMillis(newDate, newTime) ?: System.currentTimeMillis()
+
+            val updatedSchedule = schedule.copy(
+                text = newText,
+                date = newDate,
+                time = newTime,
+                category = newCategory,
+                detail = newDetail,
+                data = taskTimeMillis // ⭕ 更新された日時を正確に上書き
+            )
             schedulesRepository.updateSchedule(updatedSchedule)
+
+            // 💡 一度古いアラームを安全にキャンセルし、新日時でアラームを再予約
+            cancelTodoAlarm(
+                context = application.applicationContext,
+                taskId = schedule.id,
+                taskTitle = schedule.text
+            )
+
+            if (taskTimeMillis > System.currentTimeMillis()) {
+                scheduleTodoAlarm(
+                    context = application.applicationContext,
+                    taskId = schedule.id, // ⭕ 既存の本物のIDを引き継ぐ
+                    taskTitle = newText,
+                    taskTimeMillis = taskTimeMillis
+                )
+            }
+
             onDismissInputBox()
-            // 💡タスク編集時に通知をリアルタイム更新
             refreshOngoingNotification()
         }
     }
@@ -133,8 +189,15 @@ class HomeViewModel(
     fun deleteItem(schedule: Schedule) {
         viewModelScope.launch {
             schedulesRepository.deleteSchedule(schedule)
+
+            // 💡 タスク削除時にも連動してアラームを完全に消去する
+            cancelTodoAlarm(
+                context = application.applicationContext,
+                taskId = schedule.id,
+                taskTitle = schedule.text
+            )
+
             onDismissInputBox()
-            // 💡タスク削除時に通知をリアルタイム更新
             refreshOngoingNotification()
         }
     }
@@ -152,7 +215,6 @@ class HomeViewModel(
                     taskTitle = schedule.text
                 )
             }
-            // 💡一括削除後に古い全件カウントを廃止し、最新の期限切れ数を通知に反映
             refreshOngoingNotification()
         }
     }
@@ -171,8 +233,18 @@ class HomeViewModel(
                     taskId = schedule.id,
                     taskTitle = schedule.text
                 )
+            } else {
+                // 💡 チェックを外して未完了に戻した場合は、5分前アラームを再度自動予約する
+                val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
+                if (taskTimeMillis != null && taskTimeMillis > System.currentTimeMillis()) {
+                    scheduleTodoAlarm(
+                        context = application.applicationContext,
+                        taskId = schedule.id,
+                        taskTitle = schedule.text,
+                        taskTimeMillis = taskTimeMillis
+                    )
+                }
             }
-            // 💡チェック切り替え後に古い全件カウントを廃止し、最新の期限切れ数を通知に反映
             refreshOngoingNotification()
         }
     }
