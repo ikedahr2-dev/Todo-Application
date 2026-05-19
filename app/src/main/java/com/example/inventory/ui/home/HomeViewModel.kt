@@ -34,19 +34,12 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = schedulesRepository.getAllSchedulesStream()
         .combine(_uiState) { dbList, currentUiState ->
 
-            // 「trueではないもの（＝未完了）」だけ数えるように書き換えます
-            val uncompletedCount = dbList.count { it.isCompleted == false }
-
-            updateOngoingTaskCountNotification(
-                context = application.applicationContext,
-                uncompletedCount = uncompletedCount
-            )
+            // 💡【修正】ここでの古い一斉通知コードを削除しました。
+            // これによりバックグラウンド定期更新（WorkManager）との競合（数値のチカチカ）を防ぎます。
 
             val filteredList =
                 dbList.filter { schedule ->
-
                     val query = currentUiState.searchQuery.trim()
-
                     if (query.isBlank()) {
                         true
                     } else {
@@ -57,7 +50,6 @@ class HomeViewModel(
                 }
 
             currentUiState.copy(scheduleList = filteredList)
-
         }
         .stateIn(
             scope = viewModelScope,
@@ -67,6 +59,18 @@ class HomeViewModel(
 
     private var _editingItem = mutableStateOf<Schedule?>(null)
     val editingItem: State<Schedule?> = _editingItem
+
+    // 💡【共通処理を追加】期限切れの未完了タスク数だけを数えて通知を最新にする関数
+    private fun refreshOngoingNotification() {
+        viewModelScope.launch {
+            val currentTime = System.currentTimeMillis()
+            val overdueCount = schedulesRepository.getOverdueIncompleteTaskCount(currentTime)
+            updateOngoingTaskCountNotification(
+                context = application.applicationContext,
+                uncompletedCount = overdueCount
+            )
+        }
+    }
 
     fun onSelectFilterCategory(category: String) {
         _uiState.update {
@@ -79,9 +83,9 @@ class HomeViewModel(
             it.copy(selectedEditCategory = category)
         }
     }
+
     fun onAddClick() {
         _editingItem.value = null
-
         _uiState.update {
             it.copy(
                 showInputBox = true,
@@ -101,18 +105,17 @@ class HomeViewModel(
             val newSchedule = Schedule(text = text, date = date, time = time, category = category)
             schedulesRepository.insertSchedule(newSchedule)
             onDismissInputBox()
+            // 💡タスク追加時に通知をリアルタイム更新
+            refreshOngoingNotification()
         }
     }
 
     fun onEditSavedItem(schedule: Schedule) {
         _editingItem.value = schedule
-
         _uiState.update {
             it.copy(
                 showInputBox = true,
                 editingItem = schedule,
-
-                //編集用
                 selectedEditCategory = schedule.category
             )
         }
@@ -123,6 +126,8 @@ class HomeViewModel(
             val updatedSchedule = schedule.copy(text = newText, date = newDate, time = newTime, category = newCategory)
             schedulesRepository.updateSchedule(updatedSchedule)
             onDismissInputBox()
+            // 💡タスク編集時に通知をリアルタイム更新
+            refreshOngoingNotification()
         }
     }
 
@@ -130,6 +135,8 @@ class HomeViewModel(
         viewModelScope.launch {
             schedulesRepository.deleteSchedule(schedule)
             onDismissInputBox()
+            // 💡タスク削除時に通知をリアルタイム更新
+            refreshOngoingNotification()
         }
     }
 
@@ -146,45 +153,28 @@ class HomeViewModel(
                     taskTitle = schedule.text
                 )
             }
-
-            val uncompletedCount = uiState.value.scheduleList.count { !it.isCompleted }
-            updateOngoingTaskCountNotification(
-                context = application.applicationContext,
-                uncompletedCount = uncompletedCount
-            )
+            // 💡一括削除後に古い全件カウントを廃止し、最新の期限切れ数を通知に反映
+            refreshOngoingNotification()
         }
     }
 
     // チェックボックスの切り替え処理
     fun toggleScheduleStatus(schedule: Schedule, isChecked: Boolean) {
         viewModelScope.launch {
-            // 1. 完了状態を書き換えたデータを作成
             val updatedSchedule = schedule.copy(isCompleted = isChecked)
-
-            // 2. 先にデータベースを更新して確定させる
             schedulesRepository.updateSchedule(updatedSchedule)
 
-            // 3. データベースの更新が反映されるまで少し待機（順序を上に移動）
             kotlinx.coroutines.delay(150)
 
-            // 4. データベース書き換え完了後にアラームを安全に消去する
-            // 画面側の自動登録ロジックが動いた後に、上から上書きして確実にアラームを消し去ります
             if (isChecked) {
-                // ★引数に schedule.text を追記して、予約時と全く同じタイトル情報を手渡します
                 cancelTodoAlarm(
                     context = application.applicationContext,
                     taskId = schedule.id,
                     taskTitle = schedule.text
                 )
             }
-
-            // 5. 最新のリストから未完了タスクだけをカウントして常駐通知を更新
-            val currentList = uiState.value.scheduleList
-            val uncompletedCount = currentList.count { !it.isCompleted }
-            updateOngoingTaskCountNotification(
-                context = application.applicationContext,
-                uncompletedCount = uncompletedCount
-            )
+            // 💡チェック切り替え後に古い全件カウントを廃止し、最新の期限切れ数を通知に反映
+            refreshOngoingNotification()
         }
     }
 
