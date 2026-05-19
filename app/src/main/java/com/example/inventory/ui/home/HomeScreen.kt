@@ -67,8 +67,21 @@ fun HomeScreen(
 
     // リストに変化があったら自動で常駐通知の件数を更新する
     LaunchedEffect(uiState.scheduleList) {
-        val uncompletedCount = uiState.scheduleList.count { !it.isCompleted }
-        updateOngoingTaskCountNotification(context, uncompletedCount)
+        val currentTime = System.currentTimeMillis()
+
+        // 🌟【ここを修正】「完了していない」かつ「期限（日時）が過去のもの」だけを数える
+        val expiredAndUncompletedCount = uiState.scheduleList.count { schedule ->
+            // タスクの日時文字列をミリ秒に変換する
+            val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
+
+            // 判定条件：まだ完了していなくて、かつ、期限が現在の時刻を過ぎている（過去である）場合
+            val isExpired = taskTimeMillis != null && taskTimeMillis < currentTime
+
+            !schedule.isCompleted && isExpired
+        }
+
+        // 期限切れの未完了タスク数（例：期限を過ぎたものが2件あれば「残り2件」）で常駐通知を更新する
+        updateOngoingTaskCountNotification(context, expiredAndUncompletedCount)
     }
 
     var showDatePicker by remember { mutableStateOf(false) }
