@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.Text
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -73,12 +74,11 @@ fun CalendarScreen(
             horizontalArrangement = Arrangement.SpaceBetween, // 👈 左右に振り分ける
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 左側：選択中の日付を表示（ボタンじゃなくてただのテキスト）
-            // CalendarScreen.kt のテキスト部分
+
             Text(
-                text = selectedDate.ifEmpty { "日付を選択してください" }, // 未選択時のガイド
+                text = selectedDate.ifEmpty { "日付を選択" }, // 未選択時のガイド
                 fontSize = 24.sp, // 少しサイズ調整
-                color = md_theme_light_primary,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = 8.dp)
             )
 
@@ -88,7 +88,7 @@ fun CalendarScreen(
                 enabled = selectedDate.isNotBlank(),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("予定を\n入力")
+                Text("予定を入力")
             }
         }
 
@@ -111,7 +111,7 @@ fun CalendarScreen(
                         .padding(vertical = 8.dp) // カード同士の隙間
                         .border(
                             width = 1.5.dp,
-                            color = md_theme_light_primary,
+                            color = MaterialTheme.colorScheme.primary,
                             shape = RoundedCornerShape(8.dp)
                         )
                         .background(
