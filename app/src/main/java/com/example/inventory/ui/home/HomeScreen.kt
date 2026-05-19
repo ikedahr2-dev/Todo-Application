@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -30,7 +31,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.R
 import com.example.inventory.convertDateTimeToMillis
@@ -47,6 +47,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.lazy.LazyListScope
+import com.example.inventory.ui.theme.md_theme_dark_time
+import com.example.inventory.ui.theme.md_theme_light_time
 import kotlin.collections.component1
 import kotlin.collections.component2
 object HomeDestination : NavigationDestination {
@@ -64,25 +66,6 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-
-    // リストに変化があったら自動で常駐通知の件数を更新する
-    LaunchedEffect(uiState.scheduleList) {
-        val currentTime = System.currentTimeMillis()
-
-        // 🌟【ここを修正】「完了していない」かつ「期限（日時）が過去のもの」だけを数える
-        val expiredAndUncompletedCount = uiState.scheduleList.count { schedule ->
-            // タスクの日時文字列をミリ秒に変換する
-            val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
-
-            // 判定条件：まだ完了していなくて、かつ、期限が現在の時刻を過ぎている（過去である）場合
-            val isExpired = taskTimeMillis != null && taskTimeMillis < currentTime
-
-            !schedule.isCompleted && isExpired
-        }
-
-        // 期限切れの未完了タスク数（例：期限を過ぎたものが2件あれば「残り2件」）で常駐通知を更新する
-        updateOngoingTaskCountNotification(context, expiredAndUncompletedCount)
-    }
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -108,12 +91,12 @@ fun HomeScreen(
                         viewModel.onAddClick()
                     },
                     shape = CircleShape,
-                    containerColor = Color.White,
-                    contentColor = md_theme_light_primary,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .offset(y = (-15).dp)
                         .size(75.dp)
-                        .border(BorderStroke(1.5.dp, md_theme_light_primary), CircleShape)
+                        .border(BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary), CircleShape)
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null)
                 }
@@ -182,7 +165,9 @@ fun HomeScreen(
                                 shape = CircleShape,
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = Color.White
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
                                     borderColor = MaterialTheme.colorScheme.primary
@@ -199,7 +184,7 @@ fun HomeScreen(
                         .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
                         .groupBy { it.date }
 
-                    val strokeColor = md_theme_light_primary
+                    val strokeColor = MaterialTheme.colorScheme.primary
                     val interactionSource = remember { MutableInteractionSource() }
 
                     BasicTextField(
@@ -429,7 +414,7 @@ private fun ScheduleItemRow(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .border(1.5.dp, md_theme_light_primary, RoundedCornerShape(8.dp))
-            .background(Color.White, RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
             .clickable { onEditItem(schedule) }
             .padding(12.dp)
     ) {
@@ -455,7 +440,7 @@ private fun ScheduleItemRow(
                 )
             )
 
-            Text(text = schedule.time, fontSize = 20.sp, color = Color.DarkGray)
+            Text(text = schedule.time, fontSize = 20.sp, color = if (isSystemInDarkTheme()) md_theme_dark_time else md_theme_light_time)
         }
     }
 }
@@ -496,11 +481,11 @@ private fun LazyListScope.scheduleMainList(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "完了した予定", color = Color.Gray, fontSize = 16.sp)
+                Text(text = "完了した予定", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp)
 
                 Button(
                     onClick = { viewModel.deleteCompletedSchedules() },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD72323)),
                     shape = RoundedCornerShape(4.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                     modifier = Modifier.height(32.dp)
@@ -511,7 +496,7 @@ private fun LazyListScope.scheduleMainList(
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onError,
                             modifier = Modifier.size(14.dp)
                         )
                     }

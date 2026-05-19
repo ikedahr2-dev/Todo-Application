@@ -143,6 +143,18 @@ fun cancelTodoAlarm(context: Context, taskId: Int, taskTitle: String) {
 
 // 未完了タスク数を常駐通知として表示・更新する関数
 fun updateOngoingTaskCountNotification(context: Context, uncompletedCount: Int) {
+    // ----チャンネルの作成（Android 8.0以上で必須） ----
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val name = "ToDoリストの状況通知"
+        val descriptionText = "期限が過ぎた未完了タスクの数を常駐表示します"
+        val importance = android.app.NotificationManager.IMPORTANCE_LOW // 音を鳴らさない
+        val channel = android.app.NotificationChannel("ongoing_status", name, importance).apply {
+            description = descriptionText
+        }
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        notificationManager.createNotificationChannel(channel)
+    }
+
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
         != PackageManager.PERMISSION_GRANTED
