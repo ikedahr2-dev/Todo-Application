@@ -26,7 +26,6 @@ class HomeViewModel(
     private val schedulesRepository: SchedulesRepository,
     private val application: Application //アプリのContextを取得するために追加
 ) : ViewModel() {
-
     // 1. ダイアログなどの「UI状態」を管理する
     private val _uiState = MutableStateFlow(HomeUiState())
 
@@ -96,9 +95,9 @@ class HomeViewModel(
         _uiState.update { it.copy(showInputBox = false) }
     }
 
-    fun addText(text: String, date: String, time: String, category: String) {
+    fun addText(text: String, date: String, time: String, category: String, detail: String) {
         viewModelScope.launch {
-            val newSchedule = Schedule(text = text, date = date, time = time, category = category)
+            val newSchedule = Schedule(text = text, date = date, time = time, category = category, detail = detail)
             schedulesRepository.insertSchedule(newSchedule)
             onDismissInputBox()
         }
@@ -118,9 +117,9 @@ class HomeViewModel(
         }
     }
 
-    fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String, newCategory: String) {
+    fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String, newCategory: String, newDetail: String) {
         viewModelScope.launch {
-            val updatedSchedule = schedule.copy(text = newText, date = newDate, time = newTime, category = newCategory)
+            val updatedSchedule = schedule.copy(text = newText, date = newDate, time = newTime, category = newCategory, detail = newDetail)
             schedulesRepository.updateSchedule(updatedSchedule)
             onDismissInputBox()
         }

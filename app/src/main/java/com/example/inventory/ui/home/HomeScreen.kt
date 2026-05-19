@@ -318,6 +318,7 @@ fun HomeScreen(
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
                     initialText = uiState.editingItem?.text ?: "",
+                    initialDetail = uiState.editingItem?.detail ?: "",
                     onDismiss = { viewModel.onDismissInputBox() },
                     onSave = { text, date, time, category, detail ->
                         val item = uiState.editingItem
