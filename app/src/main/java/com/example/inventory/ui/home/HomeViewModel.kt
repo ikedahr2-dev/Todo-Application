@@ -17,7 +17,8 @@ data class HomeUiState(
     val showDatePicker: Boolean = false,
     val showInputBox: Boolean = false,
     val editingItem: Schedule? = null,
-    val selectedCategory: String = "",
+    val selectedFilterCategory: String = "",
+    val selectedEditCategory: String = "",
     val searchQuery: String = ""
 )
 
@@ -67,15 +68,27 @@ class HomeViewModel(
     private var _editingItem = mutableStateOf<Schedule?>(null)
     val editingItem: State<Schedule?> = _editingItem
 
-    fun onSelectCategory(category: String) {
-        _uiState.update { it.copy(selectedCategory = category) }
+    fun onSelectFilterCategory(category: String) {
+        _uiState.update {
+            it.copy(selectedFilterCategory = category)
+        }
+    }
+
+    fun onSelectEditCategory(category: String) {
+        _uiState.update {
+            it.copy(selectedEditCategory = category)
+        }
     }
     fun onAddClick() {
         _editingItem.value = null
-        _uiState.update { it.copy(
-            showInputBox = true,
-            editingItem = null,
-        ) }
+
+        _uiState.update {
+            it.copy(
+                showInputBox = true,
+                editingItem = null,
+                selectedEditCategory = ""
+            )
+        }
     }
 
     fun onDismissInputBox() {
@@ -93,11 +106,16 @@ class HomeViewModel(
 
     fun onEditSavedItem(schedule: Schedule) {
         _editingItem.value = schedule
-        _uiState.update { it.copy(
-            showInputBox = true,
-            editingItem = schedule,
-            selectedCategory = schedule.category
-        ) }
+
+        _uiState.update {
+            it.copy(
+                showInputBox = true,
+                editingItem = schedule,
+
+                //編集用
+                selectedEditCategory = schedule.category
+            )
+        }
     }
 
     fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String, newCategory: String) {

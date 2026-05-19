@@ -63,8 +63,6 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-    val today = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date())
     val context = LocalContext.current
 
     // リストに変化があったら自動で常駐通知の件数を更新する
@@ -78,7 +76,8 @@ fun HomeScreen(
     var selectedDate by remember { mutableStateOf("") }
     var selectedTime by remember { mutableStateOf("") }
     var showCalendar by remember { mutableStateOf(false) }
-    val selectedCategory = uiState.selectedCategory ?: ""
+    val selectedFilterCategory = uiState.selectedFilterCategory
+    val selectedEditCategory = uiState.selectedEditCategory
 
     Scaffold(
         bottomBar = {
@@ -137,7 +136,13 @@ fun HomeScreen(
                         .padding(innerPadding)
                         .fillMaxSize()
                 ) {
-                    var selectedCategoryTab by remember { mutableStateOf("すべて") }
+                    val selectedCategoryTab =
+                        if (selectedFilterCategory.isBlank()) {
+                            "すべて"
+                        } else {
+                            selectedFilterCategory
+                        }
+
                     val categories = listOf("すべて", "仕事", "プライベート", "その他")
 
                     LazyRow(
@@ -149,15 +154,15 @@ fun HomeScreen(
                             FilterChip(
                                 selected = (category == selectedCategoryTab),
                                 onClick = {
-                                    selectedCategoryTab = category
-
                                     if (category == "すべて") {
-                                        viewModel.onSelectCategory("")
+                                        viewModel.onSelectFilterCategory("")
                                     } else {
-                                        viewModel.onSelectCategory(category)
-                                    } },
-
-                                label = { Text(text = category, fontSize = 16.sp) },
+                                        viewModel.onSelectFilterCategory(category)
+                                    }
+                                },
+                                label = {
+                                    Text(text = category, fontSize = 16.sp)
+                                },
                                 modifier = Modifier
                                     .padding(vertical = 16.dp)
                                     .height(40.dp),
@@ -236,9 +241,16 @@ fun HomeScreen(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 0.dp)
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = 16.dp,
+                            top = 0.dp
+                        )
                     ) {
+
                         if (uiState.scheduleList.isEmpty()) {
+
                             item {
                                 Text(
                                     text = stringResource(R.string.no_item_description),
@@ -249,8 +261,14 @@ fun HomeScreen(
                                     style = MaterialTheme.typography.titleLarge
                                 )
                             }
+
                         } else {
-                            if (selectedCategory != "仕事" && selectedCategory != "プライベート" && selectedCategory != "その他") {
+
+                            if (
+                                selectedFilterCategory != "仕事" &&
+                                selectedFilterCategory != "プライベート" &&
+                                selectedFilterCategory != "その他"
+                            ) {
 
                                 scheduleMainList(
                                     groupedUncompleted = groupedUncompleted,
@@ -265,14 +283,18 @@ fun HomeScreen(
 
                             } else {
 
-                                val filteredSchedules = uiState.scheduleList.filter { it.category == selectedCategory }
+                                val filteredSchedules =
+                                    uiState.scheduleList.filter {
+                                        it.category == selectedFilterCategory
+                                    }
 
                                 val filteredUncompletedGroup = filteredSchedules
                                     .filter { !it.isCompleted }
                                     .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
                                     .groupBy { it.date }
 
-                                val filteredCompletedList = filteredSchedules.filter { it.isCompleted }
+                                val filteredCompletedList =
+                                    filteredSchedules.filter { it.isCompleted }
 
                                 scheduleMainList(
                                     groupedUncompleted = filteredUncompletedGroup,
@@ -285,12 +307,15 @@ fun HomeScreen(
                                     }
                                 )
                             }
-                        }
 
-                        item { Spacer(modifier = Modifier.height(100.dp)) }
+                            item {
+                                Spacer(modifier = Modifier.height(100.dp))
+                            }
+                        }
                     }
                 }
             }
+
             // 入力ダイアログ
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
@@ -337,8 +362,10 @@ fun HomeScreen(
                     onSelectTime = { showTimePicker = true },
                     selectedDate = selectedDate,
                     selectedTime = selectedTime,
-                    selectedCategory = selectedCategory,
-                    onSelectCategory = { viewModel.onSelectCategory(it) }
+                    selectedCategory = selectedEditCategory,
+                    onSelectCategory = {
+                        viewModel.onSelectEditCategory(it)
+                    }
                 )
             }
 
