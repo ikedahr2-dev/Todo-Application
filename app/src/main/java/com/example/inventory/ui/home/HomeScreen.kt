@@ -405,6 +405,19 @@ private fun ScheduleItemRow(
         label = "ArrowAnimation"
     )
 
+    // 💡【ここを追加】期限切れ（過去の時刻）かつ 未完了かどうかの判定を行う
+    val currentTime = System.currentTimeMillis()
+    val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
+    val isOverdue = taskTimeMillis != null && taskTimeMillis < currentTime && !schedule.isCompleted
+
+    // 💡【ここを追加】判定結果によって枠線と背景の色を切り替える設定
+    // 期限切れなら赤系、通常なら元のテーマ色（ダークモードにも対応できるように元の色がベストですが一旦既存の primary を使用）
+    val isDark = isSystemInDarkTheme()
+    val borderColor = if (isOverdue) androidx.compose.ui.graphics.Color(0xFF94403E) else md_theme_light_primary
+    val backgroundColor = if (isOverdue && isDark) MaterialTheme.colorScheme.surfaceVariant
+    else if (isOverdue) androidx.compose.ui.graphics.Color(0xFFFFEBEE)
+    else MaterialTheme.colorScheme.surfaceVariant
+
     val displayFormattedTime = if (!schedule.time.isNullOrBlank()) {
         val timeParts = schedule.time.split(":")
         val hour = timeParts.getOrNull(0)?.toIntOrNull()
@@ -428,8 +441,10 @@ private fun ScheduleItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .border(1.5.dp, md_theme_light_primary, RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+            // 💡【修正】固定の md_theme_light_primary から、用意した色の変数（borderColor）に変更
+            .border(1.5.dp, borderColor, RoundedCornerShape(8.dp))
+            // 💡【修正】固定の surfaceVariant から、用意した色の変数（backgroundColor）に変更
+            .background(backgroundColor, RoundedCornerShape(8.dp))
             .clickable { expanded = !expanded }
             .padding(12.dp)
     ) {
@@ -472,6 +487,7 @@ private fun ScheduleItemRow(
                     .rotate(arrowRotationDegree)
             )
         }
+
 
         // 2行目以降：タップされて開く詳細エリア
         AnimatedVisibility(visible = expanded) {
