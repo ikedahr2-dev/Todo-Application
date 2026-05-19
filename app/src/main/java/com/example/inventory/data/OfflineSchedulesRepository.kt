@@ -22,4 +22,8 @@ class OfflineSchedulesRepository(private val scheduleDao: ScheduleDao) : Schedul
     //--Daoの関数を呼び出してリポジトリ経由で件数を取得 --//
     override suspend fun getOverdueIncompleteTaskCount(currentTime: Long): Int =
         scheduleDao.getOverdueIncompleteTaskCount(currentTime)
+
+    // 💡【ここを追加】Daoの関数を呼び出してリポジトリ経由でデータ一覧を取得
+    override suspend fun getOverdueIncompleteTasks(currentTime: Long): List<Schedule> =
+        scheduleDao.getOverdueIncompleteTasks(currentTime)
 }

@@ -141,8 +141,8 @@ fun cancelTodoAlarm(context: Context, taskId: Int, taskTitle: String) {
     pendingIntent.cancel()
 }
 
-// 未完了タスク数を常駐通知として表示・更新する関数
-fun updateOngoingTaskCountNotification(context: Context, uncompletedCount: Int) {
+// 💡【修正】引数を件数（Int）から、タスクデータ一覧（List<Schedule>）を受け取る形に変更
+fun updateOngoingTaskCountNotification(context: Context, overdueTasks: List<com.example.inventory.data.Schedule>) {
     // ----チャンネルの作成（Android 8.0以上で必須） ----
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val name = "ToDoリストの状況通知"
@@ -176,11 +176,27 @@ fun updateOngoingTaskCountNotification(context: Context, uncompletedCount: Int) 
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    // 表示するメッセージの切り替え
+    val uncompletedCount = overdueTasks.size
+
+    // 表示する通常メッセージの切り替え
     val contentText = if (uncompletedCount > 0) {
-        "未完了のタスクが残り ${uncompletedCount} 件あります"
+        "未完了のタスクがあります"
     } else {
         "すべてのタスクが完了しました！"
+    }
+
+    // 💡 矢印を押して展開したとき用の「箇条書きスタイル」を作成
+    val inboxStyle = NotificationCompat.InboxStyle()
+        .setBigContentTitle("未完了のタスク一覧") // 展開時のタイトル
+        .setSummaryText("残り ${uncompletedCount} 件") // 右下のサブテキスト
+
+    // タスク一覧から名前を1件ずつ取り出して箇条書き（・タスク名）として追加（最大6件程度）
+    for (task in overdueTasks.take(6)) {
+        inboxStyle.addLine("・${task.text}")
+    }
+    // もし7件以上あれば「他◯件」と表示
+    if (uncompletedCount > 6) {
+        inboxStyle.addLine("他、${uncompletedCount - 6} 件のタスクがあります")
     }
 
     val builder = NotificationCompat.Builder(context, "ongoing_status")
@@ -191,6 +207,11 @@ fun updateOngoingTaskCountNotification(context: Context, uncompletedCount: Int) 
         .setOngoing(true) // ★超重要：ユーザーがスワイプしても消せないように常駐させる
         .setContentIntent(activityPendingIntent)
         .setAutoCancel(false)
+
+    // 💡 箇条書きが1件以上ある場合のみ、スワイプ展開用のスタイルを設定する
+    if (uncompletedCount > 0) {
+        builder.setStyle(inboxStyle)
+    }
 
     try {
         NotificationManagerCompat.from(context).notify(ONGOING_NOTIFICATION_ID, builder.build())

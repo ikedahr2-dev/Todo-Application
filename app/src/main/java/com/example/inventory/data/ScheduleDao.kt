@@ -25,7 +25,11 @@ interface ScheduleDao {
     @Query("SELECT * from schedules ORDER BY data ASC")
     fun getAllSchedule(): Flow<List<Schedule>>
 
-    //-- ここを追加：期限が現在時刻を過ぎていて、かつ未完了のタスク数を取得 --//
+    //期限が現在時刻を過ぎていて、かつ未完了のタスク数を取得
     @Query("SELECT COUNT(*) from schedules WHERE data < :currentTime AND isCompleted = 0")
     suspend fun getOverdueIncompleteTaskCount(currentTime: Long): Int
+
+    //期限切れの未完了タスクのデータ一覧をそのまま取得する
+    @Query("SELECT * from schedules WHERE data < :currentTime AND isCompleted = 0")
+    suspend fun getOverdueIncompleteTasks(currentTime: Long): List<Schedule>
 }

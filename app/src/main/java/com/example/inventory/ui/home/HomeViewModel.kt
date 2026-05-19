@@ -67,10 +67,10 @@ class HomeViewModel(
     private fun refreshOngoingNotification() {
         viewModelScope.launch {
             val currentTime = System.currentTimeMillis()
-            val overdueCount = schedulesRepository.getOverdueIncompleteTaskCount(currentTime)
+            val overdueTasks = schedulesRepository.getOverdueIncompleteTasks(currentTime)
             updateOngoingTaskCountNotification(
                 context = application.applicationContext,
-                uncompletedCount = overdueCount
+                overdueTasks = overdueTasks // ⭕ 箇条書きデータ一覧を丸ごと渡す
             )
         }
     }

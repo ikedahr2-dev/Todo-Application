@@ -48,7 +48,7 @@ class TodoAlarmReceiver : BroadcastReceiver() {
         // 通知の「完了」ボタンが押されたときのバックグラウンド処理
         val action = intent.action
 
-        // 💡 確実にIDを取得できるように、キー名を統一して取り出します
+        // 確実にIDを取得できるように、キー名を統一して取り出します
         val taskId = intent.getIntExtra("TODO_ID", -1)
 
         if (action == "com.example.inventory.ACTION_COMPLETE_TASK" && taskId != -1) {
@@ -57,7 +57,7 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                     val database = InventoryDatabase.getDatabase(context)
                     val dao = database.scheduleDao()
 
-                    // フリーズを防ぐため、全体リストを1回だけ取得し、その中から対象を探す
+                    // フリーズを防を防ぐため、全体リストを1回だけ取得し、その中から対象を探す
                     val allItems = dao.getAllSchedule().first()
                     val currentSchedule = allItems.find { it.id == taskId }
 
@@ -66,14 +66,14 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                         val updated = currentSchedule.copy(isCompleted = true)
                         dao.update(updated)
 
-                        // 期限切れの未完了数だけを高速に取得
+                        // 💡【修正】件数ではなく、新しく作った「期限切れ未完了タスクの一覧データ」を取得する
                         val currentTime = System.currentTimeMillis()
-                        val overdueCount = dao.getOverdueIncompleteTaskCount(currentTime)
+                        val overdueTasks = dao.getOverdueIncompleteTasks(currentTime)
 
-                        // 常駐通知の残り件数を最新の正しい数字に更新する
+                        // 💡【修正】名前を引数に合わせて overdueTasks としてデータ一覧を丸ごと手渡す
                         updateOngoingTaskCountNotification(
                             context = context,
-                            uncompletedCount = overdueCount
+                            overdueTasks = overdueTasks
                         )
 
                         // アラーム設定自体もキャンセルして消す
@@ -98,7 +98,6 @@ class TodoAlarmReceiver : BroadcastReceiver() {
         val title = intent.getStringExtra("TODO_TITLE") ?: "タスクの通知"
         val content = intent.getStringExtra("TODO_CONTENT") ?: "5分前です"
 
-        // 💡 ここを取り出し、インテントをそのまま引き継ぐように修正
         val notificationId = intent.getIntExtra("TODO_ID", -1)
 
         if (notificationId != -1) {

@@ -22,4 +22,6 @@ interface SchedulesRepository {
     //--期限切れの未完了タスク数を取得 --//
     suspend fun getOverdueIncompleteTaskCount(currentTime: Long): Int
 
+    //期限切れの未完了タスク一覧を取得
+    suspend fun getOverdueIncompleteTasks(currentTime: Long): List<Schedule>
 }
