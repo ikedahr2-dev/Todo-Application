@@ -2,13 +2,14 @@ package com.example.inventory.ui.home
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxWidth // 💡【重要】Modifier.fillMaxWidth() に必須のインポート
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier // 💡【重要】Modifier自体に必須のインポート
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import com.example.inventory.R
@@ -18,7 +19,6 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.ui.Modifier
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,13 +57,11 @@ fun ScheduleInputDialog(
         confirmButton = {
             Button(
                 onClick = {
-
                     // 保存出来たら閉じる
                     if (isFormValid) {
                         onSave(text, selectedDate, selectedTime, selectedCategory, detail)
                         onDismiss()
-
-                    // 未入力
+                        // 未入力
                     } else {
                         showError = true
                     }
@@ -115,7 +113,7 @@ fun ScheduleInputDialog(
                     value = detail,
                     onValueChange = { detail = it },
                     label = { Text("詳細") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth() // 💡これでエラーが消えます
                 )
 
                 Button(onClick = onSelectDate) {
@@ -164,8 +162,6 @@ fun ScheduleInputDialog(
                         }
                     }
                 }
-
-
 
                 // showErrorがtrueのときエラー表示
                 if (showError) {

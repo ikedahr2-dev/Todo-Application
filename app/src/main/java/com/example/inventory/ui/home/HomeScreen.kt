@@ -323,9 +323,9 @@ fun HomeScreen(
                     onSave = { text, date, time, category, detail ->
                         val item = uiState.editingItem
                         if (item != null) {
-                            viewModel.updateItem(item, text, date, time, category, detail)
+                            viewModel.updateItem(item, text, date, time, category)
                         } else {
-                            viewModel.addText(text, date, time, category, detail)
+                            viewModel.addText(text, date, time, category)
                         }
 
                         // アラーム予約ロジック

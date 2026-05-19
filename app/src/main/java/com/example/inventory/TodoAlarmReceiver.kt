@@ -64,14 +64,14 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                         val updated = currentSchedule.copy(isCompleted = true)
                         dao.update(updated)
 
-                        // 更新後の「最新のデータベース」から全リストをもう一度取り直して数える
-                        val latestItems = dao.getAllSchedule().first()
-                        val uncompletedCount = latestItems.count { !it.isCompleted }
+                        // 💡【修正】全件取り直し＆カウントを廃止し、期限切れの未完了数だけを高速に取得
+                        val currentTime = System.currentTimeMillis()
+                        val overdueCount = dao.getOverdueIncompleteTaskCount(currentTime)
 
                         // 常駐通知の残り件数を最新の正しい数字に更新する
                         updateOngoingTaskCountNotification(
                             context = context,
-                            uncompletedCount = uncompletedCount
+                            uncompletedCount = overdueCount // 期限切れのカウント数を手渡す
                         )
 
                         // アラーム設定自体もキャンセルして消す（変数名を currentSchedule に修正）
