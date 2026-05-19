@@ -57,6 +57,10 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.ui.draw.rotate
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
@@ -103,7 +107,10 @@ fun HomeScreen(
                     modifier = Modifier
                         .offset(y = (-15).dp)
                         .size(75.dp)
-                        .border(BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary), CircleShape)
+                        .border(
+                            BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+                            CircleShape
+                        )
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null)
                 }
@@ -330,9 +337,9 @@ fun HomeScreen(
                     onSave = { text, date, time, category, detail ->
                         val item = uiState.editingItem
                         if (item != null) {
-                            viewModel.updateItem(item, text, date, time, category,detail)
+                            viewModel.updateItem(item, text, date, time, category, detail)
                         } else {
-                            viewModel.addText(text, date, time, category,detail)
+                            viewModel.addText(text, date, time, category, detail)
                         }
 
                         // アラーム予約ロジック
@@ -360,7 +367,6 @@ fun HomeScreen(
                     },
 
 
-
                     onDelete = uiState.editingItem?.let { item ->
                         { viewModel.deleteItem(item) }
                     },
@@ -375,7 +381,6 @@ fun HomeScreen(
                 )
             }
 
-            // DatePicker
             if (showDatePicker) {
                 val datePickerState = rememberDatePickerState()
                 DatePickerDialog(
@@ -416,14 +421,31 @@ private fun ScheduleItemRow(
     onEditItem: (Schedule) -> Unit,
     viewModel: HomeViewModel
 ) {
-    // このアイテムが開いているかどうかの状態管理
     var expanded by rememberSaveable { mutableStateOf(false) }
 
-    // 矢印を回転させるアニメーション（開くと180度回転）
     val arrowRotationDegree by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         label = "ArrowAnimation"
     )
+
+    val displayFormattedTime = if (!schedule.time.isNullOrBlank()) {
+        val timeParts = schedule.time.split(":")
+        val hour = timeParts.getOrNull(0)?.toIntOrNull()
+        if (hour != null) {
+            val amPmSystem = if (hour < 12) "午前" else "午後"
+            val displayHour = when {
+                hour == 0 -> 12
+                hour > 12 -> hour - 12
+                else -> hour
+            }
+            val minute = timeParts.getOrNull(1) ?: "00"
+            "$amPmSystem ${String.format("%02d", displayHour)}:$minute"
+        } else {
+            schedule.time
+        }
+    } else {
+        "未設定"
+    }
 
     Column(
         modifier = Modifier
@@ -431,10 +453,10 @@ private fun ScheduleItemRow(
             .padding(vertical = 4.dp)
             .border(1.5.dp, md_theme_light_primary, RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-            .clickable { expanded = !expanded } // タップでダイアログではなく、アコーディオンを開閉
+            .clickable { expanded = !expanded }
             .padding(12.dp)
     ) {
-        // 通常時の 1 行目レイアウト
+        // 1行目：タイトルと時間・矢印
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
                 checked = schedule.isCompleted,
@@ -457,15 +479,13 @@ private fun ScheduleItemRow(
                 )
             )
 
-            // 時間の表示
             Text(
-                text = schedule.time,
+                text = displayFormattedTime,
                 fontSize = 20.sp,
                 color = if (isSystemInDarkTheme()) md_theme_dark_time else md_theme_light_time,
                 modifier = Modifier.padding(end = 4.dp)
             )
 
-            // パターンA：展開を示す下向き矢印アイコン（回転アニメーション付き）
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = if (expanded) "閉じる" else "詳細を開く",
@@ -476,41 +496,67 @@ private fun ScheduleItemRow(
             )
         }
 
-        // アコーディオン展開される詳細エリア（滑らかなアニメーション付き）
+        // 2行目以降：タップされて開く詳細エリア
         AnimatedVisibility(visible = expanded) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp, start = 8.dp, end = 8.dp)
+                    .padding(top = 12.dp, start = 8.dp, end = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp) // 行間のスペース
             ) {
-                // 区切り線
+                // 区切り線（エラー回避のため Divider を使用）
                 Divider(
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier.padding(bottom = 6.dp),
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                 )
 
-                // 詳細テキストの表示（空の場合は「詳細なし」など）
-                Text(
-                    text = if (!schedule.detail.isNullOrBlank()) schedule.detail else "詳細テキストはありません。",
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                //日時
+                val displayDate_day = if (!schedule.date.isNullOrBlank()) "${schedule.date} " else "未設定"
+                Text(text = "📅 日付け: $displayDate_day", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                Spacer(modifier = Modifier.height(12.dp))
+                //時間
+                val displayDate_time = if (!schedule.time.isNullOrBlank()) {
+                    val timeParts = schedule.time.split(":")
+                    val hour = timeParts.getOrNull(0)?.toIntOrNull()
+                    if (hour != null) {
+                        val amPmSystem = if (hour < 12) "午前" else "午後"
+                        val displayHour = when {
+                            hour == 0 -> 12
+                            hour > 12 -> hour - 12
+                            else -> hour
+                        }
+                        val minute = timeParts.getOrNull(1) ?: "00"
+                        "$amPmSystem ${String.format("%02d", displayHour)}:$minute"
+                    } else {
+                        schedule.time
+                    }
+                } else {
+                    "未設定"
+                }
+                Text(text = "⏰ 時間: $displayDate_time", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                // 編集ダイアログを開くためのボタンを右下に配置
+                //メモ（詳細）
+                val displayDetail = if (!schedule.detail.isNullOrBlank()) schedule.detail else "詳細テキストはありません。"
+                Text(text = "📝 メモ: $displayDetail", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                //タグ
+                val displayCategory = if (!schedule.category.isNullOrBlank()) schedule.category else "なし"
+                Text(text = "🏷️ タグ: $displayCategory", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                //右下の「編集する」ボタン
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(
-                        onClick = { onEditItem(schedule) }, // 元々カードタップで動いていた処理をここに移譲
+                        onClick = { onEditItem(schedule) },
                         colors = ButtonDefaults.textButtonColors(
                             contentColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Text("編集する", fontWeight = FontWeight.Bold)
+                        Text("編集する", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }
             }
