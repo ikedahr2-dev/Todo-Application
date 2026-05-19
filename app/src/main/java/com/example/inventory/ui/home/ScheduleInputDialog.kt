@@ -23,7 +23,7 @@ import androidx.compose.ui.Modifier
 @Composable
 fun ScheduleInputDialog(
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String) -> Unit,
+    onSave: (String, String, String, String, String) -> Unit,
     onDelete: (() -> Unit)? = null,
     onSelectDate: () -> Unit,
     onSelectTime: () -> Unit,
@@ -31,11 +31,16 @@ fun ScheduleInputDialog(
     selectedDate: String,
     selectedTime: String,
     selectedCategory: String,
-    initialText: String = ""
+    initialText: String = "",
+    initialDetail: String = ""
 ) {
 
     var text by remember(initialText) {
         mutableStateOf(initialText)
+    }
+
+    var detail by remember(initialDetail){
+        mutableStateOf(initialDetail)
     }
 
     // エラーフラグ
@@ -54,7 +59,7 @@ fun ScheduleInputDialog(
 
                     // 保存出来たら閉じる
                     if (isFormValid) {
-                        onSave(text, selectedDate, selectedTime, selectedCategory)
+                        onSave(text, selectedDate, selectedTime, selectedCategory, detail)
                         onDismiss()
 
                     // 未入力
@@ -103,6 +108,13 @@ fun ScheduleInputDialog(
                         if (isFormValid) showError = false
                     },
                     label = { Text(stringResource(R.string.stay_schedule)) }
+                )
+
+                OutlinedTextField(
+                    value = detail,
+                    onValueChange = { detail = it },
+                    label = { Text("詳細") },
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Button(onClick = onSelectDate) {
