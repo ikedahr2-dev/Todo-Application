@@ -15,7 +15,7 @@ data class Schedule(
     val category: String = "",
     val detail: String = "",
 
-    //デフォルトは未完了（false）にしてる
+    // デフォルトは未完了（false）にしてる
     val isCompleted: Boolean = false
 
 )

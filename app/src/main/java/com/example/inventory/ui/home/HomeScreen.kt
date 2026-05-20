@@ -44,12 +44,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.R
 import com.example.inventory.convertDateTimeToMillis
 import com.example.inventory.data.Schedule
-import com.example.inventory.scheduleTodoAlarm
 import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.md_theme_light_primary
-import com.example.inventory.updateOngoingTaskCountNotification
-import com.example.inventory.cancelTodoAlarm
 import com.example.inventory.ui.theme.md_theme_dark_time
 import com.example.inventory.ui.theme.md_theme_light_time
 import java.text.SimpleDateFormat
@@ -60,7 +57,7 @@ object HomeDestination : NavigationDestination {
     override val titleRes = R.string.app_name
 }
 
-//スケジュールのリスト表示、カレンダー切り替え、カテゴリーの制御
+// スケジュールのリスト表示、カレンダー切り替え、カテゴリーの制御
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
@@ -69,11 +66,11 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
-    //ViewModelから最新のUI状態を監視し、変更時に再描画する
+    // ViewModelから最新のUI状態を監視し、変更時に再描画する
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    //日時ピッカーやカレンダー状態、編集カテゴリの一時変数
+    // 日時ピッカーやカレンダー状態、編集カテゴリの一時変数
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf("") }
@@ -82,32 +79,32 @@ fun HomeScreen(
     val selectedFilterCategory = uiState.selectedFilterCategory
     val selectedEditCategory = uiState.selectedEditCategory
 
-    //ViewModelがSharedPreferencesから読み込んだカテゴリーリストを直接参照する
+    // ViewModelがSharedPreferencesから読み込んだカテゴリーリストを直接参照する
     val dynamicCategories = uiState.categoriesList
 
-    //追加ダイアログ表示フラグと、一時入力文字、長押しされた削除候補
+    // 追加ダイアログ表示フラグと、一時入力文字、長押しされた削除候補
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var newCategoryText by remember { mutableStateOf("") }
     var categoryToDelete by remember { mutableStateOf<String?>(null) }
 
-    //タブ選択状態の補正、フィルタ用文字が空文字なら「すべて」のタブを活性化ターゲットとする
+    // タブ選択状態の補正、フィルタ用文字が空文字なら「すべて」のタブを活性化ターゲットとする
     val selectedCategoryTab = if (selectedFilterCategory.isBlank()) {
         "すべて"
     } else {
         selectedFilterCategory
     }
 
-    //画面フレームの構築、下部ボタンバーやフローティングアクションボタンの配置設定
+    // 画面フレームの構築、下部ボタンバーやフローティングアクションボタンの配置設定
     Scaffold(
         bottomBar = {
-            //画面切り替えボタン、リストとカレンダーの表示
+            // 画面切り替えボタン、リストとカレンダーの表示
             ViewToggleButton(
                 onListClick = { showCalendar = false; },
                 onCalendarClick = { showCalendar = true }
             )
         },
         floatingActionButton = {
-            //カレンダー画面以外の場合に右下に巨大なスケジュール追加用の＋丸ボタンを表示させる
+            // カレンダー画面以外の場合に右下に巨大なスケジュール追加用の＋丸ボタンを表示させる
             if (!showCalendar) {
                 FloatingActionButton(
                     onClick = {
@@ -171,7 +168,7 @@ fun HomeScreen(
                         .padding(innerPadding)
                         .fillMaxSize()
                 ) {
-                    //永続保存されたカテゴリーを横スクロールできる形式で配置
+                    // 永続保存されたカテゴリーを横スクロールできる形式で配置
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
@@ -181,7 +178,7 @@ fun HomeScreen(
                         items(dynamicCategories) { category ->
                             val isSelected = category == selectedCategoryTab
 
-                            //タップでフィルター、長押しで削除ダイアログを出す
+                            // タップでフィルター、長押しで削除ダイアログを出す
                             Surface(
                                 shape = CircleShape,
                                 color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
@@ -240,28 +237,28 @@ fun HomeScreen(
                         }
                     }
 
-                    //入力されたクエリ文字を元にタイトルと詳細を検索に掛ける
+                    // 入力されたクエリ文字を元にタイトルと詳細を検索に掛ける
                     val searchedSchedules = uiState.scheduleList.filter {
                         uiState.searchQuery.isBlank() || it.text.contains(uiState.searchQuery, ignoreCase = true) || (it.detail?.contains(uiState.searchQuery, ignoreCase = true) ?: false)
                     }
 
-                    //選択されたカテゴリーに基づいてデータを最終絞り込みする
+                    // 選択されたカテゴリーに基づいてデータを最終絞り込みする
                     val filteredSchedules = if (selectedFilterCategory.isBlank()) {
                         searchedSchedules
                     } else {
                         searchedSchedules.filter { it.category == selectedFilterCategory }
                     }
 
-                    //内部処理用のデータリストの分離処理
+                    // 内部処理用のデータリストの分離処理
                     val uncompletedSchedules = filteredSchedules.filter { !it.isCompleted }
                     val completedSchedules = filteredSchedules.filter { it.isCompleted }
 
-                    //未完了タスクを「日付順」かつ「時間順」に整列させ、日付単位でグループ化する
+                    // 未完了タスクを「日付順」かつ「時間順」に整列させ、日付単位でグループ化する
                     val groupedUncompleted = uncompletedSchedules
                         .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
                         .groupBy { it.date }
 
-                    //点線の破線で囲まれた独自の検索ボックスデザイン
+                    // 点線の破線で囲まれた独自の検索ボックスデザイン
                     val strokeColor = MaterialTheme.colorScheme.primary
                     val interactionSource = remember { MutableInteractionSource() }
 
@@ -313,7 +310,7 @@ fun HomeScreen(
                             )
                         }
                     )
-                    //メインの予定一覧を日付ごとに展開して描画
+                    // メインの予定一覧を日付ごとに展開して描画
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)
@@ -338,7 +335,7 @@ fun HomeScreen(
                                 )
                             }
                         } else {
-                            //下部のscheduleMainListを呼び出して未完リスト、完了リストを生成する
+                            // 下部のscheduleMainListを呼び出して未完リスト、完了リストを生成する
                             scheduleMainList(
                                 groupedUncompleted = groupedUncompleted,
                                 completedSchedules = completedSchedules,
@@ -358,7 +355,7 @@ fun HomeScreen(
                 }
             }
 
-            //入力ダイアログ
+            // 入力ダイアログ
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
                     initialText = uiState.editingItem?.text ?: "",
@@ -388,7 +385,7 @@ fun HomeScreen(
                 )
             }
 
-            //日付選択 Material3 カレンダー型ダイアログ
+            // 日付選択 Material3 カレンダー型ダイアログ
             if (showDatePicker) {
                 val datePickerState = rememberDatePickerState()
                 DatePickerDialog(
@@ -404,7 +401,7 @@ fun HomeScreen(
                 ) { DatePicker(state = datePickerState) }
             }
 
-            //時刻選択ダイアログ
+            // 時刻選択ダイアログ
             if (showTimePicker) {
                 val timePickerState = rememberTimePickerState()
                 AlertDialog(
@@ -422,7 +419,7 @@ fun HomeScreen(
         }
     }
 
-    //SharedPreferencesへ永続保存をかける関数に繋ぎ変え
+    // SharedPreferencesへ永続保存をかける関数に繋ぎ変え
     if (showAddCategoryDialog) {
         AlertDialog(
             onDismissRequest = { showAddCategoryDialog = false },
@@ -457,7 +454,7 @@ fun HomeScreen(
         )
     }
 
-    //SharedPreferencesから永続削除をかける関数に繋ぎ変え
+    // SharedPreferencesから永続削除をかける関数に繋ぎ変え
     categoryToDelete?.let { category ->
         AlertDialog(
             onDismissRequest = { categoryToDelete = null },
@@ -491,7 +488,7 @@ private fun ScheduleItemRow(
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
 
-    //開閉矢印アイコンの回転角度アニメーション（展開時180度反転）
+    // 開閉矢印アイコンの回転角度アニメーション（展開時180度反転）
     val arrowRotationDegree by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         label = "ArrowAnimation"
@@ -510,7 +507,7 @@ private fun ScheduleItemRow(
     else if (isOverdue) androidx.compose.ui.graphics.Color(0xFFFFEBEE)
     else MaterialTheme.colorScheme.surfaceVariant
 
-    //24時間表記のデータを「午前/午後 XX:XX」の日本語形式12時間表記に整形
+    // 24時間表記のデータを「午前/午後 XX:XX」の日本語形式12時間表記に整形
     val displayFormattedTime = if (!schedule.time.isNullOrBlank()) {
         val timeParts = schedule.time.split(":")
         val hour = timeParts.getOrNull(0)?.toIntOrNull()
@@ -530,7 +527,7 @@ private fun ScheduleItemRow(
         "未設定"
     }
 
-    //各スケジュール項目の外枠コンテナ
+    // 各スケジュール項目の外枠コンテナ
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -582,7 +579,7 @@ private fun ScheduleItemRow(
             )
         }
 
-        //2行目以降：タップされて開く詳細エリア
+        // 2行目以降：タップされて開く詳細エリア
         AnimatedVisibility(visible = expanded) {
             Column(
                 modifier = Modifier
@@ -596,11 +593,11 @@ private fun ScheduleItemRow(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                 )
 
-                //日時
+                // 日時
                 val displayDate_day = if (!schedule.date.isNullOrBlank()) "${schedule.date} " else "未設定"
                 Text(text = "📅 日　　付: $displayDate_day", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                //時間
+                // 時間
                 val displayDate_time = if (!schedule.time.isNullOrBlank()) {
                     val timeParts = schedule.time.split(":")
                     val hour = timeParts.getOrNull(0)?.toIntOrNull()
@@ -625,13 +622,13 @@ private fun ScheduleItemRow(
                 val displayDetail = if (!schedule.detail.isNullOrBlank()) schedule.detail else ""
                 Text(text = "📝 メ　　モ: $displayDetail", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                //カテゴリ
+                // カテゴリ
                 val displayCategory = if (!schedule.category.isNullOrBlank()) schedule.category else "なし"
                 Text(text = "🏷️ カテゴリ: $displayCategory", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                //右下の「編集する」ボタン
+                // 右下の「編集する」ボタン
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
