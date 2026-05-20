@@ -1,5 +1,6 @@
 package com.example.inventory.ui.home
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth // 💡【重要】Modifier.fillMaxWidth() に必須のインポート
@@ -32,6 +33,7 @@ fun ScheduleInputDialog(
     selectedDate: String,
     selectedTime: String,
     selectedCategory: String,
+    categories: List<String>,
     initialText: String = "",
     initialDetail: String = ""
 ) {
@@ -98,7 +100,6 @@ fun ScheduleInputDialog(
             Column {
 
                 var expanded by remember { mutableStateOf(false) }
-                val categories = listOf("仕事", "プライベート", "その他")
 
                 OutlinedTextField(
                     value = text,
@@ -150,7 +151,7 @@ fun ScheduleInputDialog(
                         expanded = expanded,
                         onDismissRequest = { expanded = false }
                     ) {
-                        categories.forEach { category ->
+                        categories.filter { it != "すべて" }.forEach { category ->
                             DropdownMenuItem(
                                 text = { Text(text = category) },
                                 onClick = {

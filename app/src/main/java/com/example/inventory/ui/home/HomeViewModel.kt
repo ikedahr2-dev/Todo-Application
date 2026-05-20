@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.app.Application
+import android.content.Context // 💡SharedPreferencesを使うために追加
 import com.example.inventory.cancelTodoAlarm
 import com.example.inventory.updateOngoingTaskCountNotification
 import com.example.inventory.scheduleTodoAlarm // 💡5分前アラームの予約関数をインポート
@@ -21,7 +22,8 @@ data class HomeUiState(
     val editingItem: Schedule? = null,
     val selectedFilterCategory: String = "",
     val selectedEditCategory: String = "",
-    val searchQuery: String = ""
+    val searchQuery: String = "",
+    val categoriesList: List<String> = listOf("すべて", "仕事", "プライベート", "その他") // 💡UI状態として保持
 )
 
 class HomeViewModel(
@@ -61,6 +63,47 @@ class HomeViewModel(
     // 💡【追加】アプリが起動した瞬間に15分待たずに今すぐ通知を強制更新する初期化処理
     init {
         refreshOngoingNotification()
+        loadCategories() // 💡起動時に端末に保存されているカテゴリーを自動読み込み
+    }
+
+    // 💡【追加】端末（SharedPreferences）から保存されたカテゴリーを読み込む処理
+    private fun loadCategories() {
+        val sharedPreferences = application.getSharedPreferences("app_categories", Context.MODE_PRIVATE)
+        val savedCategoriesStr = sharedPreferences.getString("categories_key", null)
+        if (!savedCategoriesStr.isNullOrBlank()) {
+            val list = savedCategoriesStr.split(",")
+            _uiState.update { it.copy(categoriesList = list) }
+        }
+    }
+
+    // 💡【追加】新しいカテゴリーを端末に保存する処理
+    fun addCategory(newCategory: String) {
+        if (newCategory.isNotBlank() && !_uiState.value.categoriesList.contains(newCategory)) {
+            val updatedList = _uiState.value.categoriesList + newCategory
+            saveCategoriesToDevice(updatedList)
+            _uiState.update { it.copy(categoriesList = updatedList) }
+            onSelectFilterCategory(newCategory) // 追加したものを自動で選択
+        }
+    }
+
+    // 💡【追加】長押しされたカテゴリーを端末から削除する処理
+    fun deleteCategory(category: String) {
+        if (category != "すべて") {
+            val updatedList = _uiState.value.categoriesList.filter { it != category }
+            saveCategoriesToDevice(updatedList)
+            _uiState.update { it.copy(categoriesList = updatedList) }
+            // もし消したカテゴリーを今選んでいたら「すべて」に戻す
+            if (_uiState.value.selectedFilterCategory == category) {
+                onSelectFilterCategory("")
+            }
+        }
+    }
+
+    // 💡【追加】永続化の共通保存用関数（引数の型ミスマッチを修正）
+    private fun saveCategoriesToDevice(list: List<String>) {
+        val sharedPreferences = application.getSharedPreferences("app_categories", Context.MODE_PRIVATE)
+        val categoriesStr = list.joinToString(",")
+        sharedPreferences.edit().putString("categories_key", categoriesStr).apply()
     }
 
     // 💡【共通処理】期限切れの未完了タスク数だけを数えて通知を最新にする関数
@@ -70,7 +113,7 @@ class HomeViewModel(
             val overdueTasks = schedulesRepository.getOverdueIncompleteTasks(currentTime)
             updateOngoingTaskCountNotification(
                 context = application.applicationContext,
-                overdueTasks = overdueTasks // ⭕ 箇条書きデータ一覧を丸ごと渡す
+                overdueTasks = overdueTasks //箇条書きデータ一覧を丸ごと渡す
             )
         }
     }
@@ -116,7 +159,7 @@ class HomeViewModel(
                 time = time,
                 category = category,
                 detail = detail,
-                data = taskTimeMillis // ⭕ これで未来と過去の判定が正しくなります
+                data = taskTimeMillis //これで未来と過去の判定が正しくなる
             )
             schedulesRepository.insertSchedule(newSchedule)
 
@@ -127,7 +170,7 @@ class HomeViewModel(
             if (savedItem != null && taskTimeMillis > System.currentTimeMillis()) {
                 scheduleTodoAlarm(
                     context = application.applicationContext,
-                    taskId = savedItem.id, // ⭕ ズレのない本物のIDを使用
+                    taskId = savedItem.id, //ズレのない本物のIDを使用
                     taskTitle = text,
                     taskTimeMillis = taskTimeMillis
                 )
@@ -161,7 +204,7 @@ class HomeViewModel(
                 time = newTime,
                 category = newCategory,
                 detail = newDetail,
-                data = taskTimeMillis // ⭕ 更新された日時を正確に上書き
+                data = taskTimeMillis //更新された日時を正確に上書き
             )
             schedulesRepository.updateSchedule(updatedSchedule)
 
@@ -175,7 +218,7 @@ class HomeViewModel(
             if (taskTimeMillis > System.currentTimeMillis()) {
                 scheduleTodoAlarm(
                     context = application.applicationContext,
-                    taskId = schedule.id, // ⭕ 既存の本物のIDを引き継ぐ
+                    taskId = schedule.id, //既存の本物のIDを引き継ぐ
                     taskTitle = newText,
                     taskTimeMillis = taskTimeMillis
                 )

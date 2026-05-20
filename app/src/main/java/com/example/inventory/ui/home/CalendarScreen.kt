@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -28,6 +30,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.rememberDatePickerState
@@ -56,6 +59,9 @@ import androidx.compose.ui.text.font.FontWeight
 @Composable
 fun CalendarScreen(
     scheduleList: List<Schedule>,
+    categories: List<String>,
+    selectedCategory: String,
+    onCategorySelected: (String) -> Unit,
     selectedDate: String,
     onDateSelected: (String) -> Unit,
     onCalendarItemClick: (Schedule) -> Unit,
@@ -78,6 +84,23 @@ fun CalendarScreen(
             state = state,
             modifier = Modifier.fillMaxWidth()
         )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            categories.forEach { category: String ->
+                FilterChip(
+                    selected = (category == selectedCategory),
+                    onClick = { onCategorySelected(category) },
+                    label = { Text(text = category, fontSize = 14.sp) }
+                )
+            }
+        }
 
         // 2. 「yyyy/mm/dd」を表示するエリア
         Row(
@@ -106,7 +129,9 @@ fun CalendarScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // 3. 予定リスト（LazyColumn）
-        val dailySchedules = scheduleList.filter { it.date == selectedDate }
+        val dailySchedules = scheduleList
+            .filter { it.date == selectedDate }
+            .filter { selectedCategory == "すべて" || it.category == selectedCategory }
             .sortedBy { it.time }
 
         LazyColumn(
@@ -115,7 +140,7 @@ fun CalendarScreen(
                 .weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            items(dailySchedules) { schedule ->
+            items(dailySchedules, key = { it.id }) { schedule ->
 
                 // アイテムごとの開閉状態管理（スクロール時も状態保持）
                 var expanded by rememberSaveable(key = schedule.id.toString()) { mutableStateOf(false) }

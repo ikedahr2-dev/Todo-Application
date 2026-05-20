@@ -1,13 +1,18 @@
 package com.example.inventory.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -16,17 +21,21 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -41,33 +50,17 @@ import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.md_theme_light_primary
 import com.example.inventory.updateOngoingTaskCountNotification
 import com.example.inventory.cancelTodoAlarm
-import java.text.SimpleDateFormat
-import java.util.Locale
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.foundation.lazy.LazyListScope
 import com.example.inventory.ui.theme.md_theme_dark_time
 import com.example.inventory.ui.theme.md_theme_light_time
-import kotlin.collections.component1
-import kotlin.collections.component2
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.ui.draw.rotate
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 object HomeDestination : NavigationDestination {
     override val route = "home"
     override val titleRes = R.string.app_name
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     navigateToItemEntry: () -> Unit,
@@ -85,6 +78,19 @@ fun HomeScreen(
     var showCalendar by remember { mutableStateOf(false) }
     val selectedFilterCategory = uiState.selectedFilterCategory
     val selectedEditCategory = uiState.selectedEditCategory
+
+    // 💡【変更】ViewModelがSharedPreferencesから読み込んだ永続カテゴリーリストを直接参照する
+    val dynamicCategories = uiState.categoriesList
+
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var newCategoryText by remember { mutableStateOf("") }
+    var categoryToDelete by remember { mutableStateOf<String?>(null) }
+
+    val selectedCategoryTab = if (selectedFilterCategory.isBlank()) {
+        "すべて"
+    } else {
+        selectedFilterCategory
+    }
 
     Scaffold(
         bottomBar = {
@@ -125,6 +131,15 @@ fun HomeScreen(
                 Box(modifier = Modifier.padding(innerPadding)) {
                     CalendarScreen(
                         scheduleList = uiState.scheduleList,
+                        categories = dynamicCategories,
+                        selectedCategory = if (selectedFilterCategory.isBlank()) "すべて" else selectedFilterCategory,
+                        onCategorySelected = { category ->
+                            if (category == "すべて") {
+                                viewModel.onSelectFilterCategory("")
+                            } else {
+                                viewModel.onSelectFilterCategory(category)
+                            }
+                        },
                         selectedDate = selectedDate,
                         onDateSelected = { date -> selectedDate = date },
                         onCalendarItemClick = { schedule ->
@@ -146,53 +161,85 @@ fun HomeScreen(
                         .padding(innerPadding)
                         .fillMaxSize()
                 ) {
-                    val selectedCategoryTab =
-                        if (selectedFilterCategory.isBlank()) {
-                            "すべて"
-                        } else {
-                            selectedFilterCategory
-                        }
-
-                    val categories = listOf("すべて", "仕事", "プライベート", "その他")
-
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(categories) { category ->
-                            FilterChip(
-                                selected = (category == selectedCategoryTab),
-                                onClick = {
-                                    if (category == "すべて") {
-                                        viewModel.onSelectFilterCategory("")
-                                    } else {
-                                        viewModel.onSelectFilterCategory(category)
-                                    }
-                                },
-                                label = {
-                                    Text(text = category, fontSize = 16.sp)
-                                },
+                        items(dynamicCategories) { category ->
+                            val isSelected = category == selectedCategoryTab
+
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                                 modifier = Modifier
                                     .padding(vertical = 16.dp)
-                                    .height(40.dp),
-                                shape = CircleShape,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                    .height(40.dp)
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (category == "すべて") {
+                                                viewModel.onSelectFilterCategory("")
+                                            } else {
+                                                viewModel.onSelectFilterCategory(category)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (category != "すべて") {
+                                                categoryToDelete = category
+                                            }
+                                        }
+                                    )
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                ) {
+                                    Text(text = category, fontSize = 16.sp)
+                                }
+                            }
+                        }
 
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                ),
-                                border = FilterChipDefaults.filterChipBorder(
-                                    borderColor = MaterialTheme.colorScheme.primary
-                                )
-                            )
+                        item {
+                            Surface(
+                                onClick = { showAddCategoryDialog = true },
+                                modifier = Modifier
+                                    .padding(vertical = 16.dp)
+                                    .size(40.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.primary,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "カテゴリーを追加",
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
                         }
                     }
 
+                    val searchedSchedules = uiState.scheduleList.filter {
+                        uiState.searchQuery.isBlank() || it.text.contains(uiState.searchQuery, ignoreCase = true) || (it.detail?.contains(uiState.searchQuery, ignoreCase = true) ?: false)
+                    }
+
+                    val filteredSchedules = if (selectedFilterCategory.isBlank()) {
+                        searchedSchedules
+                    } else {
+                        searchedSchedules.filter { it.category == selectedFilterCategory }
+                    }
+
                     // 内部処理用のデータリストの分離処理
-                    val uncompletedSchedules = uiState.scheduleList.filter { !it.isCompleted }
-                    val completedSchedules = uiState.scheduleList.filter { it.isCompleted }
+                    val uncompletedSchedules = filteredSchedules.filter { !it.isCompleted }
+                    val completedSchedules = filteredSchedules.filter { it.isCompleted }
 
                     val groupedUncompleted = uncompletedSchedules
                         .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
@@ -260,9 +307,7 @@ fun HomeScreen(
                             top = 0.dp
                         )
                     ) {
-
-                        if (uiState.scheduleList.isEmpty()) {
-
+                        if (filteredSchedules.isEmpty()) {
                             item {
                                 Text(
                                     text = stringResource(R.string.no_item_description),
@@ -273,52 +318,17 @@ fun HomeScreen(
                                     style = MaterialTheme.typography.titleLarge
                                 )
                             }
-
                         } else {
-
-                            if (
-                                selectedFilterCategory != "仕事" &&
-                                selectedFilterCategory != "プライベート" &&
-                                selectedFilterCategory != "その他"
-                            ) {
-
-                                scheduleMainList(
-                                    groupedUncompleted = groupedUncompleted,
-                                    completedSchedules = completedSchedules,
-                                    viewModel = viewModel,
-                                    onEditSavedItem = { schedule ->
-                                        selectedDate = schedule.date
-                                        selectedTime = schedule.time
-                                        viewModel.onEditSavedItem(schedule)
-                                    }
-                                )
-
-                            } else {
-
-                                val filteredSchedules =
-                                    uiState.scheduleList.filter {
-                                        it.category == selectedFilterCategory
-                                    }
-
-                                val filteredUncompletedGroup = filteredSchedules
-                                    .filter { !it.isCompleted }
-                                    .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
-                                    .groupBy { it.date }
-
-                                val filteredCompletedList =
-                                    filteredSchedules.filter { it.isCompleted }
-
-                                scheduleMainList(
-                                    groupedUncompleted = filteredUncompletedGroup,
-                                    completedSchedules = filteredCompletedList,
-                                    viewModel = viewModel,
-                                    onEditSavedItem = { schedule ->
-                                        selectedDate = schedule.date
-                                        selectedTime = schedule.time
-                                        viewModel.onEditSavedItem(schedule)
-                                    }
-                                )
-                            }
+                            scheduleMainList(
+                                groupedUncompleted = groupedUncompleted,
+                                completedSchedules = completedSchedules,
+                                viewModel = viewModel,
+                                onEditSavedItem = { schedule ->
+                                    selectedDate = schedule.date
+                                    selectedTime = schedule.time
+                                    viewModel.onEditSavedItem(schedule)
+                                }
+                            )
 
                             item {
                                 Spacer(modifier = Modifier.height(100.dp))
@@ -343,7 +353,6 @@ fun HomeScreen(
                         }
                         viewModel.onDismissInputBox()
                     },
-
                     onDelete = uiState.editingItem?.let { item ->
                         { viewModel.deleteItem(item) }
                     },
@@ -354,7 +363,8 @@ fun HomeScreen(
                     selectedCategory = selectedEditCategory,
                     onSelectCategory = {
                         viewModel.onSelectEditCategory(it)
-                    }
+                    },
+                    categories = dynamicCategories
                 )
             }
 
@@ -389,6 +399,66 @@ fun HomeScreen(
                 )
             }
         }
+    }
+
+    // 💡【変更】ここでSharedPreferencesへ永続保存をかける関数に繋ぎ変え
+    if (showAddCategoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddCategoryDialog = false },
+            title = { Text("新しいカテゴリーを追加") },
+            text = {
+                OutlinedTextField(
+                    value = newCategoryText,
+                    onValueChange = { newCategoryText = it },
+                    label = { Text("カテゴリー名") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newCategoryText.isNotBlank()) {
+                            viewModel.addCategory(newCategoryText)
+                            newCategoryText = ""
+                            showAddCategoryDialog = false
+                        }
+                    }
+                ) {
+                    Text("追加")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddCategoryDialog = false }) {
+                    Text("キャンセル")
+                }
+            }
+        )
+    }
+
+    // 💡【変更】ここでSharedPreferencesから永続削除をかける関数に繋ぎ変え
+    categoryToDelete?.let { category ->
+        AlertDialog(
+            onDismissRequest = { categoryToDelete = null },
+            title = { Text("カテゴリーの削除") },
+            text = { Text("カテゴリー「$category」を削除しますか？") },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    onClick = {
+                        viewModel.deleteCategory(category)
+                        categoryToDelete = null
+                    }
+                ) {
+                    Text("削除", color = MaterialTheme.colorScheme.onError)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { categoryToDelete = null }) {
+                    Text("キャンセル")
+                }
+            }
+        )
     }
 }
 
@@ -442,8 +512,8 @@ private fun ScheduleItemRow(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             // 💡【修正】固定の md_theme_light_primary から、用意した色の変数（borderColor）に変更
-            .border(1.5.dp, borderColor, RoundedCornerShape(8.dp))
             // 💡【修正】固定の surfaceVariant から、用意した色の変数（backgroundColor）に変更
+            .border(1.5.dp, borderColor, RoundedCornerShape(8.dp))
             .background(backgroundColor, RoundedCornerShape(8.dp))
             .clickable { expanded = !expanded }
             .padding(12.dp)
@@ -487,7 +557,6 @@ private fun ScheduleItemRow(
                     .rotate(arrowRotationDegree)
             )
         }
-
 
         // 2行目以降：タップされて開く詳細エリア
         AnimatedVisibility(visible = expanded) {
@@ -635,4 +704,3 @@ fun ViewToggleButton(onListClick: () -> Unit, onCalendarClick: () -> Unit) {
         }
     }
 }
-
