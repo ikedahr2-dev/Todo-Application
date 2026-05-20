@@ -51,7 +51,7 @@ import com.example.inventory.ui.theme.md_theme_dark_time
 import com.example.inventory.ui.theme.md_theme_light_time
 import java.text.SimpleDateFormat
 import java.util.Locale
-//
+
 object HomeDestination : NavigationDestination {
     override val route = "home"
     override val titleRes = R.string.app_name
@@ -75,14 +75,10 @@ fun HomeScreen(
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf("") }
     var selectedTime by remember { mutableStateOf("") }
-<<<<<<< HEAD
 
     // 💡 3つの画面モードを管理する変数（0:リスト, 1:カレンダー, 2:タイムライン）
     var currentScreenMode by remember { mutableStateOf(0) }
 
-=======
-    var showCalendar by remember { mutableStateOf(false) }
->>>>>>> parent of 1595674 (タイムラインを追加しました。)
     val selectedFilterCategory = uiState.selectedFilterCategory
     val selectedEditCategory = uiState.selectedEditCategory
 
@@ -104,24 +100,15 @@ fun HomeScreen(
     // 画面フレームの構築、下部ボタンバーやフローティングアクションボタンの配置設定
     Scaffold(
         bottomBar = {
-<<<<<<< HEAD
             // 💡 新しい3ボタン対応のViewToggleButtonに変更
-=======
-            //画面切り替えボタン、リストとカレンダーの表示
->>>>>>> parent of 1595674 (タイムラインを追加しました。)
             ViewToggleButton(
-                onListClick = { showCalendar = false; },
-                onCalendarClick = { showCalendar = true }
+                currentMode = currentScreenMode,
+                onModeChange = { currentScreenMode = it }
             )
         },
         floatingActionButton = {
-<<<<<<< HEAD
             // 💡 リスト画面モード（0）の時だけ、巨大なスケジュール追加用の＋丸ボタンを表示させる
             if (currentScreenMode == 0) {
-=======
-            //カレンダー画面以外の場合に右下に巨大なスケジュール追加用の＋丸ボタンを表示させる
-            if (!showCalendar) {
->>>>>>> parent of 1595674 (タイムラインを追加しました。)
                 FloatingActionButton(
                     onClick = {
                         selectedDate = ""
@@ -145,7 +132,6 @@ fun HomeScreen(
         },
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
-<<<<<<< HEAD
 
             // 💡 currentScreenModeの状態（0, 1, 2）で画面表示を完全に切り替えます
             when (currentScreenMode) {
@@ -181,55 +167,28 @@ fun HomeScreen(
                             }
                         )
                     }
-=======
-            // ------------------ カレンダー画面モード ------------------
-            if (showCalendar) {
-                LaunchedEffect(Unit) {
-                    selectedDate = "" //カレンダー切り替え時に日付選択状態を一度クリアさせる
->>>>>>> parent of 1595674 (タイムラインを追加しました。)
                 }
-                Box(modifier = Modifier.padding(innerPadding)) {
-                    CalendarScreen(
-                        scheduleList = uiState.scheduleList,
-                        categories = dynamicCategories,
-                        selectedCategory = if (selectedFilterCategory.isBlank()) "すべて" else selectedFilterCategory,
-                        onCategorySelected = { category ->
-                            if (category == "すべて") {
-                                viewModel.onSelectFilterCategory("")
-                            } else {
-                                viewModel.onSelectFilterCategory(category)
+                2 -> {
+                    // ------------------ タイムライン画面モード ------------------
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        TimelineScreen(
+                            scheduleList = uiState.scheduleList,
+                            viewModel = viewModel,
+                            onTimelineItemClick = { schedule ->
+                                selectedDate = schedule.date
+                                selectedTime = schedule.time
+                                viewModel.onEditSavedItem(schedule)
                             }
-                        },
-                        selectedDate = selectedDate,
-                        onDateSelected = { date -> selectedDate = date },
-                        onCalendarItemClick = { schedule ->
-                            selectedDate = schedule.date
-                            selectedTime = schedule.time
-                            viewModel.onEditSavedItem(schedule) //スケジュールタップで編集ダイアログを開く
-                        },
-                        onAddClick = {
-                            if (selectedDate.isNotBlank()) {
-                                selectedTime = ""
-                                viewModel.onAddClick() //カレンダー上で日付を選んだまま新規登録できる
-                            }
-                        }
-                    )
+                        )
+                    }
                 }
-            } else {
-                // ------------------ リスト画面モード ------------------
-                Column(
-                    modifier = Modifier
-                        .padding(innerPadding)
-                        .fillMaxSize()
-                ) {
-                    //永続保存されたカテゴリーを横スクロールできる形式で配置
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
+                else -> {
+                    // ------------------ リスト画面モード ------------------
+                    Column(
+                        modifier = Modifier
+                            .padding(innerPadding)
+                            .fillMaxSize()
                     ) {
-<<<<<<< HEAD
                         // 永続保存されたカテゴリーを横スクロールできる形式で配置
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -342,168 +301,35 @@ fun HomeScreen(
                                             intervals = floatArrayOf(12.dp.toPx(), 8.dp.toPx()),
                                             phase = 0f
                                         )
-=======
-                        items(dynamicCategories) { category ->
-                            val isSelected = category == selectedCategoryTab
-
-                            //タップでフィルター、長押しで削除ダイアログを出す
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                                modifier = Modifier
-                                    .padding(vertical = 16.dp)
-                                    .height(40.dp)
-                                    .combinedClickable(
-                                        onClick = {
-                                            if (category == "すべて") {
-                                                viewModel.onSelectFilterCategory("")
-                                            } else {
-                                                viewModel.onSelectFilterCategory(category)
-                                            }
-                                        },
-                                        onLongClick = {
-                                            if (category != "すべて") {
-                                                categoryToDelete = category //「すべて」以外のタグなら長押しで削除候補へ保存
-                                            }
-                                        }
->>>>>>> parent of 1595674 (タイムラインを追加しました。)
                                     )
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.padding(horizontal = 16.dp)
-                                ) {
-                                    Text(text = category, fontSize = 16.sp)
-                                }
-                            }
-                        }
-
-                        //【カテゴリ追加用ボタン】リストの末尾に「＋」だけの丸ボタンを設置
-                        item {
-                            Surface(
-                                onClick = { showAddCategoryDialog = true },
-                                modifier = Modifier
-                                    .padding(vertical = 16.dp)
-                                    .size(40.dp),
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = MaterialTheme.colorScheme.primary,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.fillMaxSize()
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "カテゴリーを追加",
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    //入力されたクエリ文字を元にタイトルと詳細を検索に掛ける
-                    val searchedSchedules = uiState.scheduleList.filter {
-                        uiState.searchQuery.isBlank() || it.text.contains(uiState.searchQuery, ignoreCase = true) || (it.detail?.contains(uiState.searchQuery, ignoreCase = true) ?: false)
-                    }
-
-                    //選択されたカテゴリーに基づいてデータを最終絞り込みする
-                    val filteredSchedules = if (selectedFilterCategory.isBlank()) {
-                        searchedSchedules
-                    } else {
-                        searchedSchedules.filter { it.category == selectedFilterCategory }
-                    }
-
-                    //内部処理用のデータリストの分離処理
-                    val uncompletedSchedules = filteredSchedules.filter { !it.isCompleted }
-                    val completedSchedules = filteredSchedules.filter { it.isCompleted }
-
-                    //未完了タスクを「日付順」かつ「時間順」に整列させ、日付単位でグループ化する
-                    val groupedUncompleted = uncompletedSchedules
-                        .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
-                        .groupBy { it.date }
-
-                    //点線の破線で囲まれた独自の検索ボックスデザイン
-                    val strokeColor = MaterialTheme.colorScheme.primary
-                    val interactionSource = remember { MutableInteractionSource() }
-
-                    BasicTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = { viewModel.updateSearchQuery(it) },
-                        interactionSource = interactionSource,
-                        textStyle = LocalTextStyle.current.copy(fontSize = 16.sp),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp)
-                            .drawWithContent {
-                                drawContent()
-                                // 点線の枠線を動的に描画する処理
-                                val stroke = Stroke(
-                                    width = 1.5.dp.toPx(),
-                                    pathEffect = PathEffect.dashPathEffect(
-                                        intervals = floatArrayOf(12.dp.toPx(), 8.dp.toPx()),
-                                        phase = 0f
-                                    )
-                                )
-                                drawRoundRect(
-                                    color = strokeColor,
-                                    style = stroke,
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
-                                )
-                            },
-                        decorationBox = { innerTextField ->
-                            OutlinedTextFieldDefaults.DecorationBox(
-                                value = uiState.searchQuery,
-                                innerTextField = innerTextField,
-                                enabled = true,
-                                singleLine = true,
-                                visualTransformation = VisualTransformation.None,
-                                interactionSource = interactionSource,
-                                placeholder = {
-                                    Text(
-                                        text = "予定を検索",
-                                        color = strokeColor.copy(alpha = 0.6f),
-                                        fontSize = 16.sp
+                                    drawRoundRect(
+                                        color = strokeColor,
+                                        style = stroke,
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
                                     )
                                 },
-                                contentPadding = PaddingValues(
-                                    horizontal = 12.dp,
-                                    vertical = 10.dp
-                                ),
-                                container = {}
-                            )
-                        }
-                    )
-                    //メインの予定一覧を日付ごとに展開して描画
-                    LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            bottom = 16.dp,
-                            top = 0.dp
-                        )
-                    ) {
-                        //該当スケジュールが1件もない場合のメッセージ表示させる
-                        if (filteredSchedules.isEmpty()) {
-                            item {
-                                Text(
-                                    text = stringResource(R.string.no_item_description),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 32.dp),
-                                    textAlign = TextAlign.Center,
-                                    style = MaterialTheme.typography.titleLarge
+                            decorationBox = { innerTextField ->
+                                OutlinedTextFieldDefaults.DecorationBox(
+                                    value = uiState.searchQuery,
+                                    innerTextField = innerTextField,
+                                    enabled = true,
+                                    singleLine = true,
+                                    visualTransformation = VisualTransformation.None,
+                                    interactionSource = interactionSource,
+                                    placeholder = {
+                                        Text(
+                                            text = "予定を検索",
+                                            color = strokeColor.copy(alpha = 0.6f),
+                                            fontSize = 16.sp
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(
+                                        horizontal = 12.dp,
+                                        vertical = 10.dp
+                                    ),
+                                    container = {}
                                 )
                             }
-<<<<<<< HEAD
                         )
                         // メインの予定一覧を日付ごとに展開して描画
                         LazyColumn(
@@ -541,23 +367,10 @@ fun HomeScreen(
                                         viewModel.onEditSavedItem(schedule)
                                     }
                                 )
-=======
-                        } else {
-                            //下部のscheduleMainListを呼び出して未完リスト、完了リストを生成する
-                            scheduleMainList(
-                                groupedUncompleted = groupedUncompleted,
-                                completedSchedules = completedSchedules,
-                                viewModel = viewModel,
-                                onEditSavedItem = { schedule ->
-                                    selectedDate = schedule.date
-                                    selectedTime = schedule.time
-                                    viewModel.onEditSavedItem(schedule)
-                                }
-                            )
->>>>>>> parent of 1595674 (タイムラインを追加しました。)
 
-                            item {
-                                Spacer(modifier = Modifier.height(100.dp))
+                                item {
+                                    Spacer(modifier = Modifier.height(100.dp))
+                                }
                             }
                         }
                     }
@@ -927,9 +740,11 @@ private fun LazyListScope.scheduleMainList(
 
 // 💡 3つのボタンが隙間なく「一列」に収まる最新のViewToggleButtonです
 @Composable
-fun ViewToggleButton(onListClick: () -> Unit, onCalendarClick: () -> Unit) {
+fun ViewToggleButton(
+    currentMode: Int,
+    onModeChange: (Int) -> Unit
+) {
     BottomAppBar(containerColor = MaterialTheme.colorScheme.surface) {
-<<<<<<< HEAD
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -971,11 +786,6 @@ fun ViewToggleButton(onListClick: () -> Unit, onCalendarClick: () -> Unit) {
                     contentColor = if (currentMode == 2) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             ) { Text("タイムライン", fontSize = 14.sp) }
-=======
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onListClick, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small) { Text("リスト") }
-            Button(onClick = onCalendarClick, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small) { Text("カレンダー") }
->>>>>>> parent of 1595674 (タイムラインを追加しました。)
         }
     }
 }
