@@ -62,7 +62,7 @@ fun ScheduleInputDialog(
                     if (isFormValid) {
                         onSave(text, selectedDate, selectedTime, selectedCategory, detail)
                         onDismiss()
-                        // 未入力
+                        //未入力
                     } else {
                         showError = true
                     }
@@ -71,7 +71,7 @@ fun ScheduleInputDialog(
             ) {
                 Text(stringResource(R.string.enter))
             }
-        },
+        },//
         dismissButton = {
             Row {
                 if (onDelete != null) {

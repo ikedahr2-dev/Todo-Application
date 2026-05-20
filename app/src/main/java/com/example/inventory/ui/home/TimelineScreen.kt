@@ -34,7 +34,7 @@ import java.util.Date
 import java.util.Locale
 
 // 【時間軸表示画面】1日のスケジュールを24時間の縦型タイムライン形式で一覧表示するコンポーザブル
-@Composable
+@Composable//
 fun TimelineScreen(
     scheduleList: List<Schedule>,
     onTimelineItemClick: (Schedule) -> Unit,
