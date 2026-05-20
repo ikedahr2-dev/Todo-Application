@@ -239,18 +239,18 @@ fun CalendarScreen(
                             } else {
                                 "未設定"
                             }
-                            Text(text = "📅 日付け: $formattedDate", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(text = "📅 日　　付: $formattedDate", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                             //時間
-                            Text(text = "⏰ 時間: $displayFormattedTime", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(text = "⏰ 時　　間: $displayFormattedTime", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                             //メモ（詳細）
-                            val displayDetail = if (!schedule.detail.isNullOrBlank()) schedule.detail else "詳細テキストはありません。"
-                            Text(text = "📝 メモ: $displayDetail", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            val displayDetail = if (!schedule.detail.isNullOrBlank()) schedule.detail else ""
+                            Text(text = "📝 メ　　モ: $displayDetail", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                             //タグ
                             val displayCategory = if (!schedule.category.isNullOrBlank()) schedule.category else "なし"
-                            Text(text = "🏷️ タグ: $displayCategory", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(text = "🏷️ カテゴリ: $displayCategory", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                             Spacer(modifier = Modifier.height(8.dp))
 

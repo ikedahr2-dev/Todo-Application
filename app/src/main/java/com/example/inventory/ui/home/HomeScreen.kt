@@ -60,6 +60,7 @@ object HomeDestination : NavigationDestination {
     override val titleRes = R.string.app_name
 }
 
+//スケジュールのリスト表示、カレンダー切り替え、カテゴリーの制御
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
@@ -68,9 +69,11 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
+    //ViewModelから最新のUI状態を監視し、変更時に再描画する
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
+    //日時ピッカーやカレンダー状態、編集カテゴリの一時変数
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf("") }
@@ -79,33 +82,38 @@ fun HomeScreen(
     val selectedFilterCategory = uiState.selectedFilterCategory
     val selectedEditCategory = uiState.selectedEditCategory
 
-    // 💡【変更】ViewModelがSharedPreferencesから読み込んだ永続カテゴリーリストを直接参照する
+    //ViewModelがSharedPreferencesから読み込んだカテゴリーリストを直接参照する
     val dynamicCategories = uiState.categoriesList
 
+    //追加ダイアログ表示フラグと、一時入力文字、長押しされた削除候補
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var newCategoryText by remember { mutableStateOf("") }
     var categoryToDelete by remember { mutableStateOf<String?>(null) }
 
+    //タブ選択状態の補正、フィルタ用文字が空文字なら「すべて」のタブを活性化ターゲットとする
     val selectedCategoryTab = if (selectedFilterCategory.isBlank()) {
         "すべて"
     } else {
         selectedFilterCategory
     }
 
+    //画面フレームの構築、下部ボタンバーやフローティングアクションボタンの配置設定
     Scaffold(
         bottomBar = {
+            //画面切り替えボタン、リストとカレンダーの表示
             ViewToggleButton(
                 onListClick = { showCalendar = false; },
                 onCalendarClick = { showCalendar = true }
             )
         },
         floatingActionButton = {
+            //カレンダー画面以外の場合に右下に巨大なスケジュール追加用の＋丸ボタンを表示させる
             if (!showCalendar) {
                 FloatingActionButton(
                     onClick = {
                         selectedDate = ""
                         selectedTime = ""
-                        viewModel.onAddClick()
+                        viewModel.onAddClick() //ViewModel側へ新規作成ダイアログの表示要求
                     },
                     shape = CircleShape,
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -124,9 +132,10 @@ fun HomeScreen(
         },
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
+            // ------------------ カレンダー画面モード ------------------
             if (showCalendar) {
                 LaunchedEffect(Unit) {
-                    selectedDate = ""
+                    selectedDate = "" //カレンダー切り替え時に日付選択状態を一度クリアさせる
                 }
                 Box(modifier = Modifier.padding(innerPadding)) {
                     CalendarScreen(
@@ -145,22 +154,24 @@ fun HomeScreen(
                         onCalendarItemClick = { schedule ->
                             selectedDate = schedule.date
                             selectedTime = schedule.time
-                            viewModel.onEditSavedItem(schedule)
+                            viewModel.onEditSavedItem(schedule) //スケジュールタップで編集ダイアログを開く
                         },
                         onAddClick = {
                             if (selectedDate.isNotBlank()) {
                                 selectedTime = ""
-                                viewModel.onAddClick()
+                                viewModel.onAddClick() //カレンダー上で日付を選んだまま新規登録できる
                             }
                         }
                     )
                 }
             } else {
+                // ------------------ リスト画面モード ------------------
                 Column(
                     modifier = Modifier
                         .padding(innerPadding)
                         .fillMaxSize()
                 ) {
+                    //永続保存されたカテゴリーを横スクロールできる形式で配置
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
@@ -170,6 +181,7 @@ fun HomeScreen(
                         items(dynamicCategories) { category ->
                             val isSelected = category == selectedCategoryTab
 
+                            //タップでフィルター、長押しで削除ダイアログを出す
                             Surface(
                                 shape = CircleShape,
                                 color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
@@ -188,7 +200,7 @@ fun HomeScreen(
                                         },
                                         onLongClick = {
                                             if (category != "すべて") {
-                                                categoryToDelete = category
+                                                categoryToDelete = category //「すべて」以外のタグなら長押しで削除候補へ保存
                                             }
                                         }
                                     )
@@ -202,6 +214,7 @@ fun HomeScreen(
                             }
                         }
 
+                        //【カテゴリ追加用ボタン】リストの末尾に「＋」だけの丸ボタンを設置
                         item {
                             Surface(
                                 onClick = { showAddCategoryDialog = true },
@@ -227,24 +240,28 @@ fun HomeScreen(
                         }
                     }
 
+                    //入力されたクエリ文字を元にタイトルと詳細を検索に掛ける
                     val searchedSchedules = uiState.scheduleList.filter {
                         uiState.searchQuery.isBlank() || it.text.contains(uiState.searchQuery, ignoreCase = true) || (it.detail?.contains(uiState.searchQuery, ignoreCase = true) ?: false)
                     }
 
+                    //選択されたカテゴリーに基づいてデータを最終絞り込みする
                     val filteredSchedules = if (selectedFilterCategory.isBlank()) {
                         searchedSchedules
                     } else {
                         searchedSchedules.filter { it.category == selectedFilterCategory }
                     }
 
-                    // 内部処理用のデータリストの分離処理
+                    //内部処理用のデータリストの分離処理
                     val uncompletedSchedules = filteredSchedules.filter { !it.isCompleted }
                     val completedSchedules = filteredSchedules.filter { it.isCompleted }
 
+                    //未完了タスクを「日付順」かつ「時間順」に整列させ、日付単位でグループ化する
                     val groupedUncompleted = uncompletedSchedules
                         .sortedWith(compareBy<Schedule> { it.date }.thenBy { it.time })
                         .groupBy { it.date }
 
+                    //点線の破線で囲まれた独自の検索ボックスデザイン
                     val strokeColor = MaterialTheme.colorScheme.primary
                     val interactionSource = remember { MutableInteractionSource() }
 
@@ -259,6 +276,7 @@ fun HomeScreen(
                             .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp)
                             .drawWithContent {
                                 drawContent()
+                                // 点線の枠線を動的に描画する処理
                                 val stroke = Stroke(
                                     width = 1.5.dp.toPx(),
                                     pathEffect = PathEffect.dashPathEffect(
@@ -295,7 +313,7 @@ fun HomeScreen(
                             )
                         }
                     )
-
+                    //メインの予定一覧を日付ごとに展開して描画
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)
@@ -307,6 +325,7 @@ fun HomeScreen(
                             top = 0.dp
                         )
                     ) {
+                        //該当スケジュールが1件もない場合のメッセージ表示させる
                         if (filteredSchedules.isEmpty()) {
                             item {
                                 Text(
@@ -319,6 +338,7 @@ fun HomeScreen(
                                 )
                             }
                         } else {
+                            //下部のscheduleMainListを呼び出して未完リスト、完了リストを生成する
                             scheduleMainList(
                                 groupedUncompleted = groupedUncompleted,
                                 completedSchedules = completedSchedules,
@@ -338,7 +358,7 @@ fun HomeScreen(
                 }
             }
 
-            // 入力ダイアログ
+            //入力ダイアログ
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
                     initialText = uiState.editingItem?.text ?: "",
@@ -368,6 +388,7 @@ fun HomeScreen(
                 )
             }
 
+            //日付選択 Material3 カレンダー型ダイアログ
             if (showDatePicker) {
                 val datePickerState = rememberDatePickerState()
                 DatePickerDialog(
@@ -383,7 +404,7 @@ fun HomeScreen(
                 ) { DatePicker(state = datePickerState) }
             }
 
-            // TimePicker
+            //時刻選択ダイアログ
             if (showTimePicker) {
                 val timePickerState = rememberTimePickerState()
                 AlertDialog(
@@ -401,7 +422,7 @@ fun HomeScreen(
         }
     }
 
-    // 💡【変更】ここでSharedPreferencesへ永続保存をかける関数に繋ぎ変え
+    //SharedPreferencesへ永続保存をかける関数に繋ぎ変え
     if (showAddCategoryDialog) {
         AlertDialog(
             onDismissRequest = { showAddCategoryDialog = false },
@@ -436,7 +457,7 @@ fun HomeScreen(
         )
     }
 
-    // 💡【変更】ここでSharedPreferencesから永続削除をかける関数に繋ぎ変え
+    //SharedPreferencesから永続削除をかける関数に繋ぎ変え
     categoryToDelete?.let { category ->
         AlertDialog(
             onDismissRequest = { categoryToDelete = null },
@@ -470,17 +491,18 @@ private fun ScheduleItemRow(
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
 
+    //開閉矢印アイコンの回転角度アニメーション（展開時180度反転）
     val arrowRotationDegree by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         label = "ArrowAnimation"
     )
 
-    // 💡【ここを追加】期限切れ（過去の時刻）かつ 未完了かどうかの判定を行う
+    //　期限切れ（過去の時刻）かつ 未完了かどうかの判定を行う
     val currentTime = System.currentTimeMillis()
     val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
     val isOverdue = taskTimeMillis != null && taskTimeMillis < currentTime && !schedule.isCompleted
 
-    // 💡【ここを追加】判定結果によって枠線と背景の色を切り替える設定
+    // 判定結果によって枠線と背景の色を切り替える設定
     // 期限切れなら赤系、通常なら元のテーマ色（ダークモードにも対応できるように元の色がベストですが一旦既存の primary を使用）
     val isDark = isSystemInDarkTheme()
     val borderColor = if (isOverdue) androidx.compose.ui.graphics.Color(0xFF94403E) else md_theme_light_primary
@@ -488,6 +510,7 @@ private fun ScheduleItemRow(
     else if (isOverdue) androidx.compose.ui.graphics.Color(0xFFFFEBEE)
     else MaterialTheme.colorScheme.surfaceVariant
 
+    //24時間表記のデータを「午前/午後 XX:XX」の日本語形式12時間表記に整形
     val displayFormattedTime = if (!schedule.time.isNullOrBlank()) {
         val timeParts = schedule.time.split(":")
         val hour = timeParts.getOrNull(0)?.toIntOrNull()
@@ -507,18 +530,19 @@ private fun ScheduleItemRow(
         "未設定"
     }
 
+    //各スケジュール項目の外枠コンテナ
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            // 💡【修正】固定の md_theme_light_primary から、用意した色の変数（borderColor）に変更
-            // 💡【修正】固定の surfaceVariant から、用意した色の変数（backgroundColor）に変更
+            // 固定の md_theme_light_primary から、用意した色の変数（borderColor）に変更
+            // 固定の surfaceVariant から、用意した色の変数（backgroundColor）に変更
             .border(1.5.dp, borderColor, RoundedCornerShape(8.dp))
             .background(backgroundColor, RoundedCornerShape(8.dp))
             .clickable { expanded = !expanded }
             .padding(12.dp)
     ) {
-        // 1行目：タイトルと時間・矢印
+        //1行目：タイトルと時間・矢印
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
                 checked = schedule.isCompleted,
@@ -558,7 +582,7 @@ private fun ScheduleItemRow(
             )
         }
 
-        // 2行目以降：タップされて開く詳細エリア
+        //2行目以降：タップされて開く詳細エリア
         AnimatedVisibility(visible = expanded) {
             Column(
                 modifier = Modifier
@@ -566,7 +590,7 @@ private fun ScheduleItemRow(
                     .padding(top = 12.dp, start = 8.dp, end = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp) // 行間のスペース
             ) {
-                // 区切り線（エラー回避のため Divider を使用）
+                //区切り線
                 Divider(
                     modifier = Modifier.padding(bottom = 6.dp),
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
@@ -574,7 +598,7 @@ private fun ScheduleItemRow(
 
                 //日時
                 val displayDate_day = if (!schedule.date.isNullOrBlank()) "${schedule.date} " else "未設定"
-                Text(text = "📅 日付け: $displayDate_day", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = "📅 日　　付: $displayDate_day", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 //時間
                 val displayDate_time = if (!schedule.time.isNullOrBlank()) {
@@ -595,15 +619,15 @@ private fun ScheduleItemRow(
                 } else {
                     "未設定"
                 }
-                Text(text = "⏰ 時間: $displayDate_time", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = "⏰ 時　　間: $displayDate_time", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 //メモ（詳細）
-                val displayDetail = if (!schedule.detail.isNullOrBlank()) schedule.detail else "詳細テキストはありません。"
-                Text(text = "📝 メモ: $displayDetail", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val displayDetail = if (!schedule.detail.isNullOrBlank()) schedule.detail else ""
+                Text(text = "📝 メ　　モ: $displayDetail", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                //タグ
+                //カテゴリ
                 val displayCategory = if (!schedule.category.isNullOrBlank()) schedule.category else "なし"
-                Text(text = "🏷️ タグ: $displayCategory", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = "🏷️ カテゴリ: $displayCategory", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 Spacer(modifier = Modifier.height(8.dp))
 
