@@ -1,15 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://tools.android.com/tools">
 
-    <!-- 通知用の権限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <!-- 正確な時間にアラームを鳴らすための権限 -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <!-- ★1番用：スマホの再起動完了イベントを受け取るための権限を追加 -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".InventoryApplication"
@@ -21,7 +20,6 @@
         android:theme="@style/Theme.Inventory"
         tools:targetApi="33">
 
-        <!-- ★1番用：exportedをtrueに変更し、再起動を受け取るフィルター（intent-filter）を追加 -->
         <receiver
             android:name=".TodoAlarmReceiver"
             android:exported="true">
