@@ -71,7 +71,7 @@ fun ScheduleInputDialog(
             ) {
                 Text(stringResource(R.string.enter))
             }
-        },
+        },//
         dismissButton = {
             Row {
                 if (onDelete != null) {
