@@ -1,16 +1,15 @@
 package com.example.inventory.ui.home
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth // 💡【重要】Modifier.fillMaxWidth() に必須のインポート
+import androidx.compose.foundation.layout.fillMaxWidth // Modifier.fillMaxWidth() に必須のインポート
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier // 💡【重要】Modifier自体に必須のインポート
+import androidx.compose.ui.Modifier // Modifier自体に必須のインポート
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import com.example.inventory.R

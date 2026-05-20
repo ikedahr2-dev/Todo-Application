@@ -5,11 +5,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.app.Application
-import android.content.Context // 💡SharedPreferencesを使うために追加
+import android.content.Context // SharedPreferencesを使うために追加
 import com.example.inventory.cancelTodoAlarm
 import com.example.inventory.updateOngoingTaskCountNotification
-import com.example.inventory.scheduleTodoAlarm // 💡5分前アラームの予約関数をインポート
-import com.example.inventory.convertDateTimeToMillis // 💡日時文字列のミリ秒変換関数をインポート
+import com.example.inventory.scheduleTodoAlarm // 5分前アラームの予約関数をインポート
+import com.example.inventory.convertDateTimeToMillis // 日時文字列のミリ秒変換関数をインポート
 import com.example.inventory.data.Schedule
 import com.example.inventory.data.SchedulesRepository
 import kotlinx.coroutines.flow.*
@@ -60,13 +60,13 @@ class HomeViewModel(
     private var _editingItem = mutableStateOf<Schedule?>(null)
     val editingItem: State<Schedule?> = _editingItem
 
-    // 💡【追加】アプリが起動した瞬間に15分待たずに今すぐ通知を強制更新する初期化処理
+    // アプリが起動した瞬間に15分待たずに今すぐ通知を強制更新する初期化処理
     init {
         refreshOngoingNotification()
-        loadCategories() // 💡起動時に端末に保存されているカテゴリーを自動読み込み
+        loadCategories() // 起動時に端末に保存されているカテゴリーを自動読み込み
     }
 
-    // 💡【追加】端末（SharedPreferences）から保存されたカテゴリーを読み込む処理
+    // 端末（SharedPreferences）から保存されたカテゴリーを読み込む処理
     private fun loadCategories() {
         val sharedPreferences = application.getSharedPreferences("app_categories", Context.MODE_PRIVATE)
         val savedCategoriesStr = sharedPreferences.getString("categories_key", null)
@@ -76,7 +76,7 @@ class HomeViewModel(
         }
     }
 
-    // 💡【追加】新しいカテゴリーを端末に保存する処理
+    // 新しいカテゴリーを端末に保存する処理
     fun addCategory(newCategory: String) {
         if (newCategory.isNotBlank() && !_uiState.value.categoriesList.contains(newCategory)) {
             val updatedList = _uiState.value.categoriesList + newCategory
@@ -86,7 +86,7 @@ class HomeViewModel(
         }
     }
 
-    // 💡【追加】長押しされたカテゴリーを端末から削除する処理
+    // 長押しされたカテゴリーを端末から削除する処理
     fun deleteCategory(category: String) {
         if (category != "すべて") {
             val updatedList = _uiState.value.categoriesList.filter { it != category }
@@ -99,14 +99,14 @@ class HomeViewModel(
         }
     }
 
-    // 💡【追加】永続化の共通保存用関数（引数の型ミスマッチを修正）
+    // 永続化の共通保存用関数（引数の型ミスマッチを修正）
     private fun saveCategoriesToDevice(list: List<String>) {
         val sharedPreferences = application.getSharedPreferences("app_categories", Context.MODE_PRIVATE)
         val categoriesStr = list.joinToString(",")
         sharedPreferences.edit().putString("categories_key", categoriesStr).apply()
     }
 
-    // 💡【共通処理】期限切れの未完了タスク数だけを数えて通知を最新にする関数
+    // 期限切れの未完了タスク数だけを数えて通知を最新にする関数
     private fun refreshOngoingNotification() {
         viewModelScope.launch {
             val currentTime = System.currentTimeMillis()
@@ -149,10 +149,10 @@ class HomeViewModel(
     // 🟢 タスク追加（5分前アラーム自動予約付きに修正）
     fun addText(text: String, date: String, time: String, category: String, detail: String) {
         viewModelScope.launch {
-            // 💡 選択された日時をミリ秒に変換
+            // 選択された日時をミリ秒に変換
             val taskTimeMillis = convertDateTimeToMillis(date, time) ?: System.currentTimeMillis()
 
-            // 💡 変換したミリ秒（taskTimeMillis）をdataフィールドにしっかり格納して保存
+            // 変換したミリ秒（taskTimeMillis）をdataフィールドにしっかり格納して保存
             val newSchedule = Schedule(
                 text = text,
                 date = date,
@@ -163,7 +163,7 @@ class HomeViewModel(
             )
             schedulesRepository.insertSchedule(newSchedule)
 
-            // 💡 保存直後、DBが自動生成した本物のID（確定した背番号）を特定してアラームをセットする
+            // 保存直後、DBが自動生成した本物のID（確定した背番号）を特定してアラームをセットする
             val savedList = schedulesRepository.getAllSchedulesStream().first()
             val savedItem = savedList.find { it.text == text && it.date == date && it.time == time }
 
@@ -192,10 +192,10 @@ class HomeViewModel(
         }
     }
 
-    // 🟢 タスク編集（5分前アラーム自動再予約付きに修正）
+    // タスク編集（5分前アラーム自動再予約付きに修正）
     fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String, newCategory: String, newDetail: String) {
         viewModelScope.launch {
-            // 💡 新しく選択された日時をミリ秒に変換
+            // 新しく選択された日時をミリ秒に変換
             val taskTimeMillis = convertDateTimeToMillis(newDate, newTime) ?: System.currentTimeMillis()
 
             val updatedSchedule = schedule.copy(
@@ -208,7 +208,7 @@ class HomeViewModel(
             )
             schedulesRepository.updateSchedule(updatedSchedule)
 
-            // 💡 一度古いアラームを安全にキャンセルし、新日時でアラームを再予約
+            // 一度古いアラームを安全にキャンセルし、新日時でアラームを再予約
             cancelTodoAlarm(
                 context = application.applicationContext,
                 taskId = schedule.id,
@@ -233,7 +233,7 @@ class HomeViewModel(
         viewModelScope.launch {
             schedulesRepository.deleteSchedule(schedule)
 
-            // 💡 タスク削除時にも連動してアラームを完全に消去する
+            // タスク削除時にも連動してアラームを完全に消去する
             cancelTodoAlarm(
                 context = application.applicationContext,
                 taskId = schedule.id,
@@ -277,7 +277,7 @@ class HomeViewModel(
                     taskTitle = schedule.text
                 )
             } else {
-                // 💡 チェックを外して未完了に戻した場合は、5分前アラームを再度自動予約する
+                // チェックを外して未完了に戻した場合は、5分前アラームを再度自動予約する
                 val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
                 if (taskTimeMillis != null && taskTimeMillis > System.currentTimeMillis()) {
                     scheduleTodoAlarm(

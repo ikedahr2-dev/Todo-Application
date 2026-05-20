@@ -83,7 +83,7 @@ fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTime
 
     val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
         putExtra("TODO_TITLE", "【5分前】タスクの時間です")
-        putExtra("TODO_CONTENT", taskTitle) // ★これが消去側にも絶対に必要です
+        putExtra("TODO_CONTENT", taskTitle) // これが消去側にも絶対に必要です
         putExtra("TODO_ID", taskId)
     }
 
@@ -123,7 +123,7 @@ fun convertDateTimeToMillis(dateString: String, timeString: String): Long? {
 fun cancelTodoAlarm(context: Context, taskId: Int, taskTitle: String) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-    // 💡 予約時（scheduleTodoAlarm）のインテントと、中身の「引き出しの数や文字」を完全に同一にします
+    // 予約時（scheduleTodoAlarm）のインテントと、中身の「引き出しの数や文字」を完全に同一にします
     val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
         putExtra("TODO_TITLE", "【5分前】タスクの時間です")
         putExtra("TODO_CONTENT", taskTitle) // ★ここにも同じ文字を詰めることで、OSが同一アラームだと認識します
@@ -141,7 +141,7 @@ fun cancelTodoAlarm(context: Context, taskId: Int, taskTitle: String) {
     pendingIntent.cancel()
 }
 
-// 💡【修正】引数を件数（Int）から、タスクデータ一覧（List<Schedule>）を受け取る形に変更
+// 引数を件数（Int）から、タスクデータ一覧（List<Schedule>）を受け取る形に変更
 fun updateOngoingTaskCountNotification(context: Context, overdueTasks: List<com.example.inventory.data.Schedule>) {
     // ----チャンネルの作成（Android 8.0以上で必須） ----
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -185,7 +185,7 @@ fun updateOngoingTaskCountNotification(context: Context, overdueTasks: List<com.
         "すべてのタスクが完了しました！"
     }
 
-    // 💡 矢印を押して展開したとき用の「箇条書きスタイル」を作成
+    // 矢印を押して展開したとき用の「箇条書きスタイル」を作成
     val inboxStyle = NotificationCompat.InboxStyle()
         .setBigContentTitle("未完了のタスク一覧") // 展開時のタイトル
         .setSummaryText("残り ${uncompletedCount} 件") // 右下のサブテキスト
@@ -208,7 +208,7 @@ fun updateOngoingTaskCountNotification(context: Context, overdueTasks: List<com.
         .setContentIntent(activityPendingIntent)
         .setAutoCancel(false)
 
-    // 💡 箇条書きが1件以上ある場合のみ、スワイプ展開用のスタイルを設定する
+    // 箇条書きが1件以上ある場合のみ、スワイプ展開用のスタイルを設定する
     if (uncompletedCount > 0) {
         builder.setStyle(inboxStyle)
     }
