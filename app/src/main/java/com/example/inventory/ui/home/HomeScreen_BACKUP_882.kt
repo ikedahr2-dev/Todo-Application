@@ -51,7 +51,7 @@ import com.example.inventory.ui.theme.md_theme_dark_time
 import com.example.inventory.ui.theme.md_theme_light_time
 import java.text.SimpleDateFormat
 import java.util.Locale
-//
+
 object HomeDestination : NavigationDestination {
     override val route = "home"
     override val titleRes = R.string.app_name
