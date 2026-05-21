@@ -10,6 +10,7 @@ data class Schedule(
     val text: String,
     val time: String,
     val date: String,
+    val endTime: String = "",
 
     val data: Long = System.currentTimeMillis(), //日付の更新
     val category: String = "",
