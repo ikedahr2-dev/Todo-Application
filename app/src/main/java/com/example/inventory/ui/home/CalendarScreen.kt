@@ -31,7 +31,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.rememberDatePickerState
@@ -53,6 +53,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
 
 // カレンダー表示とスケジュール確認を行う画面構成
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,17 +111,28 @@ fun CalendarScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             categories.forEach { category: String ->
-                // タップで現在選ばれているカテゴリを切り替える
-                FilterChip(
-                    selected = (category == selectedCategory),
-                    onClick = { onCategorySelected(category) },
-                    label = { Text(text = category, fontSize = 14.sp) }
-                )
+                val isSelected = (category == selectedCategory)
+
+                Surface(
+                    shape = CircleShape,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                    modifier = Modifier
+                        .height(40.dp)
+                        .clickable { onCategorySelected(category) }
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    ) {
+                        Text(text = category, fontSize = 16.sp)
+                    }
+                }
             }
         }
 
@@ -187,7 +200,7 @@ fun CalendarScreen(
                             color = MaterialTheme.colorScheme.primary,
                             shape = RoundedCornerShape(8.dp)
                         )
-                        .background(Color.White, RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
                         .clickable { expanded = !expanded } // タップでアコーディオン開閉
                         .padding(12.dp)
                 ) {
