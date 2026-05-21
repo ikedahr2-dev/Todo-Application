@@ -66,11 +66,11 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                         val updated = currentSchedule.copy(isCompleted = true)
                         dao.update(updated)
 
-                        // 💡【修正】件数ではなく、新しく作った「期限切れ未完了タスクの一覧データ」を取得する
+                        // 件数ではなく、新しく作った「期限切れ未完了タスクの一覧データ」を取得する
                         val currentTime = System.currentTimeMillis()
                         val overdueTasks = dao.getOverdueIncompleteTasks(currentTime)
 
-                        // 💡【修正】名前を引数に合わせて overdueTasks としてデータ一覧を丸ごと手渡す
+                        // 名前を引数に合わせて overdueTasks としてデータ一覧を丸ごと手渡す
                         updateOngoingTaskCountNotification(
                             context = context,
                             overdueTasks = overdueTasks

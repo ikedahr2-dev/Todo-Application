@@ -180,9 +180,9 @@ fun updateOngoingTaskCountNotification(context: Context, overdueTasks: List<com.
 
     // 表示する通常メッセージの切り替え
     val contentText = if (uncompletedCount > 0) {
-        "未完了のタスクがあります"
+        "期限切れのタスクがあります"
     } else {
-        "すべてのタスクが完了しました！"
+        "期限切れのタスクはありません"
     }
 
     // 矢印を押して展開したとき用の「箇条書きスタイル」を作成
