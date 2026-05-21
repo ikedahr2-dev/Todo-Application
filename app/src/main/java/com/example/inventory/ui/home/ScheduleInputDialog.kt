@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
@@ -31,7 +30,8 @@ import androidx.compose.ui.text.font.FontWeight
 @Composable
 fun ScheduleInputDialog(
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, String, String) -> Unit,
+    // 💡 7つ目の引数（Int）として「何分前に通知するか（reminderMinutes）」を追加
+    onSave: (String, String, String, String, String, String, Int) -> Unit,
     onDelete: (() -> Unit)? = null,
     onSelectDate: () -> Unit,
     onSelectTime: () -> Unit,
@@ -43,12 +43,17 @@ fun ScheduleInputDialog(
     selectedCategory: String,
     categories: List<String>,
     initialText: String = "",
-    initialDetail: String = ""
+    initialDetail: String = "",
+    // 💡 編集時のために、初期の通知分数を親から受け取る（デフォルトは5分）
+    initialReminderMinutes: Int = 5
 ) {
 
-    // タイトルとメモの入力を管理する状態（初期値が渡されたら自動更新）
+    // タイトルとメモの入力を管理する状態
     var text by remember(initialText) { mutableStateOf(initialText) }
     var detail by remember(initialDetail) { mutableStateOf(initialDetail) }
+
+    // 💡 通知時間を管理する状態（デフォルトは親から受け取った値）
+    var selectedReminderMinutes by remember(initialReminderMinutes) { mutableStateOf(initialReminderMinutes) }
 
     // エラーメッセージの表示状態を管理するフラグ
     var showError by remember { mutableStateOf(false) }
@@ -89,8 +94,8 @@ fun ScheduleInputDialog(
             Button(
                 onClick = {
                     if (isFormValid) {
-                        // 入力が正しい場合のみ、データを引き渡してダイアログを閉じる
-                        onSave(text, selectedDate, selectedTime, selectedEndTime, selectedCategory, detail)
+                        // 💡 選択された通知分数（selectedReminderMinutes）も一緒に引き渡す
+                        onSave(text, selectedDate, selectedTime, selectedEndTime, selectedCategory, detail, selectedReminderMinutes)
                         onDismiss()
                     } else {
                         // 未入力や時間逆転がある場合はエラーを表示
@@ -117,8 +122,9 @@ fun ScheduleInputDialog(
         // ダイアログの中身（入力フォーム一覧）
         text = {
             Column {
-                // カテゴリ選択用のメニュー開閉フラグ
-                var expanded by remember { mutableStateOf(false) }
+                // プルダウン開閉フラグ
+                var categoryExpanded by remember { mutableStateOf(false) }
+                var reminderExpanded by remember { mutableStateOf(false) } // 💡 通知時間用
 
                 // スケジュール名入力欄
                 OutlinedTextField(
@@ -166,10 +172,63 @@ fun ScheduleInputDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // 💡 ----- 通知時間のプルダウン -----
+                Text(text = "通知設定", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+
+                // 表示用の文字を生成（-1なら「通知なし」、0なら「時間ピッタリ」、それ以外は「XX分前」）
+                val reminderLabel = when (selectedReminderMinutes) {
+                    -1 -> "通知なし"
+                    0 -> "時間ピッタリ"
+                    else -> "${selectedReminderMinutes}分前"
+                }
+
+                ExposedDropdownMenuBox(
+                    expanded = reminderExpanded,
+                    onExpandedChange = { reminderExpanded = !reminderExpanded }
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        readOnly = true,
+                        value = reminderLabel,
+                        onValueChange = {},
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = reminderExpanded) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = reminderExpanded,
+                        onDismissRequest = { reminderExpanded = false }
+                    ) {
+                        // 選べる時間の選択肢リストを作成
+                        val options = listOf(
+                            Pair("通知なし", -1),
+                            Pair("時間ピッタリ", 0),
+                            Pair("5分前", 5),
+                            Pair("10分前", 10),
+                            Pair("15分前", 15),
+                            Pair("30分前", 30),
+                            Pair("1時間前", 60)
+                        )
+
+                        options.forEach { (label, minutes) ->
+                            DropdownMenuItem(
+                                text = { Text(text = label) },
+                                onClick = {
+                                    selectedReminderMinutes = minutes
+                                    reminderExpanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 // ----- カテゴリプルダウン -----
                 ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded }
+                    expanded = categoryExpanded,
+                    onExpandedChange = { categoryExpanded = !categoryExpanded }
                 ) {
                     OutlinedTextField(
                         modifier = Modifier.menuAnchor(),
@@ -177,14 +236,14 @@ fun ScheduleInputDialog(
                         value = selectedCategory,
                         onValueChange = {},
                         label = { Text("カテゴリー") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
                     )
 
                     // 選択項目の中身一覧
                     ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        expanded = categoryExpanded,
+                        onDismissRequest = { categoryExpanded = false }
                     ) {
                         // フィルター用の「すべて」を除外したリストをメニューに表示
                         categories.filter { it != "すべて" }.forEach { category ->
@@ -192,7 +251,7 @@ fun ScheduleInputDialog(
                                 text = { Text(text = category) },
                                 onClick = {
                                     onSelectCategory(category)
-                                    expanded = false
+                                    categoryExpanded = false
                                 },
                                 contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                             )

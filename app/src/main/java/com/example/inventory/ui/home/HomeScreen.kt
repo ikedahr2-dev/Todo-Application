@@ -133,7 +133,6 @@ fun HomeScreen(
                         selectedDate = ""
                     }
                     Box(modifier = Modifier.padding(innerPadding)) {
-                        // 💡 エラーを解決するために viewModel = viewModel パラメータを末尾に追加しました
                         CalendarScreen(
                             scheduleList = uiState.scheduleList,
                             categories = dynamicCategories,
@@ -156,13 +155,12 @@ fun HomeScreen(
                                     viewModel.onAddClick()
                                 }
                             },
-                            viewModel = viewModel // 💡 追加：カレンダー内でのチェックボックス操作を連動させる
+                            viewModel = viewModel
                         )
                     }
                 }
                 2 -> {
                     // ------------------ タイムライン画面モード ------------------
-                    // タイムライン表示に切り替わったとき、選択日付が空なら今日の日付を初期化する
                     if (selectedDate.isBlank()) {
                         selectedDate = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date())
                     }
@@ -170,8 +168,8 @@ fun HomeScreen(
                     Box(modifier = Modifier.padding(innerPadding)) {
                         TimelineScreen(
                             scheduleList = uiState.scheduleList,
-                            selectedDate = selectedDate, // 現在選ばれている日付の状態を渡す
-                            onDateChange = { newDate -> selectedDate = newDate }, // カレンダーで日を変えた時の処理
+                            selectedDate = selectedDate,
+                            onDateChange = { newDate -> selectedDate = newDate },
                             viewModel = viewModel,
                             onTimelineItemClick = { schedule ->
                                 selectedDate = schedule.date
@@ -321,28 +319,31 @@ fun HomeScreen(
                 }
             }
 
-            // 入力ダイアログ（引数構造を終了時間に対応）
+            // 💡 1箇所目：カレンダー/タイムライン画面側の入力ダイアログ
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
                     initialText = uiState.editingItem?.text ?: "",
                     initialDetail = uiState.editingItem?.detail ?: "",
+                    // 💡 引数に initialReminderMinutes を渡す（新規なら5、編集なら保存されている値）
+                    initialReminderMinutes = uiState.editingItem?.reminderMinutes ?: 5,
                     onDismiss = { viewModel.onDismissInputBox() },
-                    onSave = { text, date, time, endTime, category, detail -> // endTimeを追加
+                    // 💡 onSave に reminderMinutes を追加して ViewModel へ渡す
+                    onSave = { text, date, time, endTime, category, detail, reminderMinutes ->
                         val item = uiState.editingItem
                         if (item != null) {
-                            viewModel.updateItem(item, text, date, time, endTime, category, detail)
+                            viewModel.updateItem(item, text, date, time, endTime, category, detail, reminderMinutes)
                         } else {
-                            viewModel.addText(text, date, time, endTime, category, detail)
+                            viewModel.addText(text, date, time, endTime, category, detail, reminderMinutes)
                         }
                         viewModel.onDismissInputBox()
                     },
                     onDelete = uiState.editingItem?.let { item -> { viewModel.deleteItem(item) } },
                     onSelectDate = { showDatePicker = true },
                     onSelectTime = { showTimePicker = true },
-                    onSelectEndTime = { showEndTimePicker = true }, // 追加
+                    onSelectEndTime = { showEndTimePicker = true },
                     selectedDate = selectedDate,
                     selectedTime = selectedTime,
-                    selectedEndTime = selectedEndTime, // 追加
+                    selectedEndTime = selectedEndTime,
                     selectedCategory = selectedEditCategory,
                     onSelectCategory = { viewModel.onSelectEditCategory(it) },
                     categories = dynamicCategories
@@ -381,7 +382,7 @@ fun HomeScreen(
                 )
             }
 
-            // 終了時刻選択を追加
+            // 終了時刻選択
             if (showEndTimePicker) {
                 val timePickerState = rememberTimePickerState()
                 AlertDialog(
@@ -555,6 +556,14 @@ private fun ScheduleItemRow(
                 // 時間
                 Text(text = "⏰ 時　　間: $displayStartTime ～ $displayEndTime", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
+                // 💡 通知時間を詳細画面にも表示する（オマケ）
+                val reminderText = when (schedule.reminderMinutes) {
+                    -1 -> "通知なし"
+                    0 -> "時間ピッタリ"
+                    else -> "${schedule.reminderMinutes}分前"
+                }
+                Text(text = "🔔 通　　知: $reminderText", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
                 // メモ
                 val displayDetail = if (!schedule.detail.isNullOrBlank()) schedule.detail else "なし"
                 Text(text = "📝 メ　　モ: $displayDetail", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -581,7 +590,6 @@ private fun ScheduleItemRow(
     }
 }
 
-// scheduleMainList と ViewToggleButton はそのまま維持
 private fun LazyListScope.scheduleMainList(
     groupedUncompleted: Map<String, List<Schedule>>,
     completedSchedules: List<Schedule>,
@@ -598,7 +606,6 @@ private fun LazyListScope.scheduleMainList(
         }
     }
 
-    //完了した予定の一括削除
     if (completedSchedules.isNotEmpty()) {
         item {
             Row(

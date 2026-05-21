@@ -13,7 +13,7 @@ import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-// 1. 通知を表示する関数（引数に notificationId を追加して重複を防止）
+// 1. 通知を表示する関数
 fun sendTodoNotification(context: Context, notificationId: Int, title: String, content: String) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -22,28 +22,25 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         return
     }
 
-    // タップしたときに起動する画面（MainActivity）を指定
     val activityIntent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
     }
 
-    // 通知に埋め込むための特別なインテントを作成
     val activityPendingIntent = PendingIntent.getActivity(
         context,
-        notificationId, // タスクごとのIDをここにも使う
+        notificationId,
         activityIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    // 通知の「完了」ボタンを押したときに Receiver を呼び出すためのインテント
     val completeIntent = Intent(context, TodoAlarmReceiver::class.java).apply {
         action = "com.example.inventory.ACTION_COMPLETE_TASK"
-        putExtra("TODO_ID", notificationId) // タスクIDを渡す
+        putExtra("TODO_ID", notificationId)
     }
 
     val completePendingIntent = PendingIntent.getBroadcast(
         context,
-        notificationId, // ボタン専用の識別ID
+        notificationId,
         completeIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
@@ -54,13 +51,12 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         .setContentText(content)
         .setPriority(NotificationCompat.PRIORITY_MAX)
         .setDefaults(NotificationCompat.DEFAULT_ALL)
-        .setContentIntent(activityPendingIntent) //タップした時の動きを登録
-        .setAutoCancel(true) //タップされたら自動的に通知を消す
-        // 通知に「完了」ボタンを設置
+        .setContentIntent(activityPendingIntent)
+        .setAutoCancel(true)
         .addAction(
-            android.R.drawable.ic_secure, // チェックマークのアイコン
-            "完了",                               // ボタンのテキスト
-            completePendingIntent                 // 押したときに送る電波
+            android.R.drawable.ic_secure,
+            "完了",
+            completePendingIntent
         )
 
     try {
@@ -69,8 +65,9 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         e.printStackTrace()
     }
 }
-// 2. アラームを予約する関数（引数に taskId を追加して同じ時間の通知が消えるのを防止）
-fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTimeMillis: Long) {
+
+// 2. アラームを予約する関数（💡 reminderMinutes を追加）
+fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTimeMillis: Long, reminderMinutes: Int) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -81,9 +78,15 @@ fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTime
         }
     }
 
+    // 💡 通知なし(-1)の場合はアラームをセットせずに終了する
+    if (reminderMinutes < 0) return
+
+    // 💡 0分なら「時間です」、それ以外なら「XX分前」と表示を切り替える
+    val displayTitle = if (reminderMinutes == 0) "タスクの時間です" else "【${reminderMinutes}分前】タスクの時間です"
+
     val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
-        putExtra("TODO_TITLE", "【5分前】タスクの時間です")
-        putExtra("TODO_CONTENT", taskTitle) // これが消去側にも絶対に必要です
+        putExtra("TODO_TITLE", displayTitle)
+        putExtra("TODO_CONTENT", taskTitle)
         putExtra("TODO_ID", taskId)
     }
 
@@ -94,7 +97,8 @@ fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTime
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    val alarmTimeMillis = taskTimeMillis - (5 * 60 * 1000)
+    // 💡 設定された分数（reminderMinutes）を引き算する
+    val alarmTimeMillis = taskTimeMillis - (reminderMinutes * 60 * 1000L)
 
     if (alarmTimeMillis > System.currentTimeMillis()) {
         alarmManager.setExactAndAllowWhileIdle(
@@ -119,14 +123,16 @@ fun convertDateTimeToMillis(dateString: String, timeString: String): Long? {
     }
 }
 
-// 4. アラームをキャンセルする関数（予約時とインテントの中身を完全に一致させる修正）
-fun cancelTodoAlarm(context: Context, taskId: Int, taskTitle: String) {
+// 4. アラームをキャンセルする関数（💡 reminderMinutes を追加）
+fun cancelTodoAlarm(context: Context, taskId: Int, taskTitle: String, reminderMinutes: Int) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-    // 予約時（scheduleTodoAlarm）のインテントと、中身の「引き出しの数や文字」を完全に同一にします
+    // 💡 予約時と同じタイトルを生成してキャンセルする
+    val displayTitle = if (reminderMinutes == 0) "タスクの時間です" else "【${reminderMinutes}分前】タスクの時間です"
+
     val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
-        putExtra("TODO_TITLE", "【5分前】タスクの時間です")
-        putExtra("TODO_CONTENT", taskTitle) // ★ここにも同じ文字を詰めることで、OSが同一アラームだと認識します
+        putExtra("TODO_TITLE", displayTitle)
+        putExtra("TODO_CONTENT", taskTitle)
         putExtra("TODO_ID", taskId)
     }
 
@@ -141,13 +147,12 @@ fun cancelTodoAlarm(context: Context, taskId: Int, taskTitle: String) {
     pendingIntent.cancel()
 }
 
-// 引数を件数（Int）から、タスクデータ一覧（List<Schedule>）を受け取る形に変更
+// 常駐通知の関数
 fun updateOngoingTaskCountNotification(context: Context, overdueTasks: List<com.example.inventory.data.Schedule>) {
-    // ----チャンネルの作成（Android 8.0以上で必須） ----
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val name = "ToDoリストの状況通知"
         val descriptionText = "期限が過ぎた未完了タスクの数を常駐表示します"
-        val importance = android.app.NotificationManager.IMPORTANCE_LOW // 音を鳴らさない
+        val importance = android.app.NotificationManager.IMPORTANCE_LOW
         val channel = android.app.NotificationChannel("ongoing_status", name, importance).apply {
             description = descriptionText
         }
@@ -162,10 +167,8 @@ fun updateOngoingTaskCountNotification(context: Context, overdueTasks: List<com.
         return
     }
 
-    // 常駐通知専用のID（固定値。5分前アラームのIDと被らない数字）
     val ONGOING_NOTIFICATION_ID = 9999
 
-    // 通知をタップしたときにアプリを開く設定
     val activityIntent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
     }
@@ -178,23 +181,19 @@ fun updateOngoingTaskCountNotification(context: Context, overdueTasks: List<com.
 
     val uncompletedCount = overdueTasks.size
 
-    // 表示する通常メッセージの切り替え
     val contentText = if (uncompletedCount > 0) {
         "期限切れのタスクがあります"
     } else {
         "期限切れのタスクはありません"
     }
 
-    // 矢印を押して展開したとき用の「箇条書きスタイル」を作成
     val inboxStyle = NotificationCompat.InboxStyle()
-        .setBigContentTitle("未完了のタスク一覧") // 展開時のタイトル
-        .setSummaryText("残り ${uncompletedCount} 件") // 右下のサブテキスト
+        .setBigContentTitle("未完了のタスク一覧")
+        .setSummaryText("残り ${uncompletedCount} 件")
 
-    // タスク一覧から名前を1件ずつ取り出して箇条書き（・タスク名）として追加（最大6件程度）
     for (task in overdueTasks.take(6)) {
         inboxStyle.addLine("・${task.text}")
     }
-    // もし7件以上あれば「他◯件」と表示
     if (uncompletedCount > 6) {
         inboxStyle.addLine("他、${uncompletedCount - 6} 件のタスクがあります")
     }
@@ -203,12 +202,11 @@ fun updateOngoingTaskCountNotification(context: Context, overdueTasks: List<com.
         .setSmallIcon(android.R.drawable.ic_menu_agenda)
         .setContentTitle("ToDoリストの状況")
         .setContentText(contentText)
-        .setPriority(NotificationCompat.PRIORITY_LOW) // 常駐なので音やバナーで邪魔しない低優先度
-        .setOngoing(true) // ★超重要：ユーザーがスワイプしても消せないように常駐させる
+        .setPriority(NotificationCompat.PRIORITY_LOW)
+        .setOngoing(true)
         .setContentIntent(activityPendingIntent)
         .setAutoCancel(false)
 
-    // 箇条書きが1件以上ある場合のみ、スワイプ展開用のスタイルを設定する
     if (uncompletedCount > 0) {
         builder.setStyle(inboxStyle)
     }
