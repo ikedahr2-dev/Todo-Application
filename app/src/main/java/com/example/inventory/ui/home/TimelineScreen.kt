@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.inventory.convertDateTimeToMillis
@@ -35,185 +36,290 @@ import com.example.inventory.data.Schedule
 import com.example.inventory.ui.theme.md_theme_dark_time
 import com.example.inventory.ui.theme.md_theme_light_primary
 import com.example.inventory.ui.theme.md_theme_light_time
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
-// タイムライン全体の画面構成
 @Composable
 fun TimelineScreen(
     scheduleList: List<Schedule>,
-    selectedDate: String, // 💡 外部（HomeScreenなど）から現在選択中の日付を受け取る
-    onDateChange: (String) -> Unit, // 💡 日付が変更されたことを外部に伝えるイベント
+    selectedDate: String,
+    onDateChange: (String) -> Unit,
     onTimelineItemClick: (Schedule) -> Unit,
     viewModel: HomeViewModel,
     modifier: Modifier = Modifier
 ) {
-    // Androidのシステムコンテキストを取得（日付変更用ダイアログの表示に必須）
     val context = LocalContext.current
-
-    // 全予定の中から「選択された日付」のものだけを抽出し保持
     val todaysSchedules = remember(scheduleList, selectedDate) {
         scheduleList.filter { it.date == selectedDate }
     }
-
-    // 下部のTODOエリア用に「選択された日付の未完了タスク」だけを抽出
     val todaysIncompleteTasks = remember(todaysSchedules) {
         todaysSchedules.filter { !it.isCompleted }
     }
-
-    // 進捗グラフ用に全体の達成度を計算
     val totalCount = todaysSchedules.size
     val completedCount = todaysSchedules.count { it.isCompleted }
-
-    // 横方向のスクロール位置を管理する状態
     val scrollState = rememberScrollState()
 
-    // タイムラインの1時間あたりの横幅の基準サイズ(1時間=100dp)
-    val hourWidth = 100.dp
+    // 予定がないときの、標準の5分マスのコンパクトな横幅
+    val defaultStepWidth = 15.dp
 
-    // カレンダー上部に並べる00:00〜24:00までの目盛り用文字リスト
-    val timeLabels = remember { (0..24).map { String.format("%02d:00", it) } }
+    // 全288個の5分マスの幅を個別に動的決定するマップ
+    val dynamicFiveMinuteWidths = remember(todaysSchedules, scheduleList) {
+        val widthMap = IntArray(288) { defaultStepWidth.value.toInt() }
 
-    // 画面全体の縦並びレイアウト
+        // 1. 各5分マスのそれぞれの地点において、重なっている予定の「最大文字数」を事前集計する
+        val maxCharCounts = IntArray(288) { 0 }
+        todaysSchedules.forEach { schedule ->
+            try {
+                val startParts = schedule.time.split(":")
+                val startH = startParts.getOrNull(0)?.toIntOrNull() ?: 0
+                val startM = startParts.getOrNull(1)?.toIntOrNull() ?: 0
+                val startBlockIndex = (startH * 12) + (startM / 5)
+
+                val endParts = schedule.endTime.split(":")
+                val endH = endParts.getOrNull(0)?.toIntOrNull() ?: startH
+                val endM = endParts.getOrNull(1)?.toIntOrNull() ?: (startM + 5)
+                val endBlockIndex = ((endH * 12) + (endM / 5)).coerceAtMost(288)
+
+                for (i in startBlockIndex until endBlockIndex) {
+                    if (i in 0..287) {
+                        maxCharCounts[i] = maxCharCounts[i].coerceAtLeast(schedule.text.length)
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+
+        // 2. 集計した「最大文字数」を基準に、10分なら2分割、15分なら3分割して各マスを均等に引き延ばす
+        todaysSchedules.forEach { schedule ->
+            try {
+                val startParts = schedule.time.split(":")
+                val startH = startParts.getOrNull(0)?.toIntOrNull() ?: 0
+                val startM = startParts.getOrNull(1)?.toIntOrNull() ?: 0
+                val startBlockIndex = (startH * 12) + (startM / 5)
+
+                val endParts = schedule.endTime.split(":")
+                val endH = endParts.getOrNull(0)?.toIntOrNull() ?: startH
+                val endM = endParts.getOrNull(1)?.toIntOrNull() ?: (startM + 5)
+                val endBlockIndex = ((endH * 12) + (endM / 5)).coerceAtMost(288)
+
+                val blockCount = endBlockIndex - startBlockIndex
+
+                if (blockCount > 0) {
+                    var maxCharsInThisRange = 0
+                    for (i in startBlockIndex until endBlockIndex) {
+                        if (i in 0..287) {
+                            maxCharsInThisRange = maxCharsInThisRange.coerceAtLeast(maxCharCounts[i])
+                        }
+                    }
+
+                    val requiredTotalWidth = (maxCharsInThisRange * 18) + 110
+                    val originalTotalWidth = defaultStepWidth.value.toInt() * blockCount
+                    val delta = requiredTotalWidth - originalTotalWidth
+
+                    val extraWidthPerBlock = if (delta > 0) delta / blockCount else 0
+                    val finalStepWidth = defaultStepWidth.value.toInt() + extraWidthPerBlock
+
+                    for (i in startBlockIndex until endBlockIndex) {
+                        if (i in 0..287) {
+                            widthMap[i] = widthMap[i].coerceAtLeast(finalStepWidth)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // パース失敗時はデフォルト維持
+            }
+        }
+        widthMap
+    }
+
+    // 任意の時間位置までの正確な横オフセット距離（dp）を算出する関数
+    fun getOffsetUpToBlock(targetTime: Float): Dp {
+        val totalMinutes = (targetTime * 60f).toInt()
+        val targetBlockCount = totalMinutes / 5
+        val remainderMinutes = totalMinutes % 5
+
+        var accumulatedDp = 0.dp
+        for (i in 0 until targetBlockCount) {
+            if (i in 0..287) {
+                accumulatedDp += dynamicFiveMinuteWidths[i].dp
+            }
+        }
+        if (targetBlockCount in 0..287) {
+            val currentBlockWidth = dynamicFiveMinuteWidths[targetBlockCount].dp
+            accumulatedDp += currentBlockWidth * (remainderMinutes / 5f)
+        }
+        return accumulatedDp
+    }
+
+    // 各1時間の総横幅を算出
+    val hourWidths = remember(dynamicFiveMinuteWidths) {
+        IntArray(24) { hour ->
+            var sum = 0
+            for (m in 0 until 12) {
+                sum += dynamicFiveMinuteWidths[(hour * 12) + m]
+            }
+            sum
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        // 💡 上部エリア：日付タイトルと日付変更ボタンを横並びにするレイアウト
+        // 上部エリア
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // 画面上部の一番大きなタイトル（選択中の日付を表示）
-            Text(
-                text = "$selectedDate のタイムライン",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            // 💡 カレンダーアイコンのボタン（タップでシステムのカレンダーダイアログを起動）
+            Text(text = "$selectedDate のタイムライン", color = MaterialTheme.colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             IconButton(
                 onClick = {
                     val calendar = Calendar.getInstance()
                     try {
-                        // 現在画面に出て選択されている日付文字列を解析してカレンダーの初期位置にする
                         val dateParts = selectedDate.split("/")
-                        val year = dateParts[0].toInt()
-                        val month = dateParts[1].toInt() - 1 // Calendarの月は0〜11の仕様
-                        val day = dateParts[2].toInt()
-                        calendar.set(year, month, day)
-                    } catch (e: Exception) {
-                        // 解析が万が一失敗した場合は、現在の標準状態（今日）のまま進行させる
-                    }
-
-                    // Android標準の日付選択ダイアログを表示
-                    DatePickerDialog(
-                        context,
-                        { _, year, month, dayOfMonth ->
-                            // 選択完了時、"yyyy/MM/dd" 形式に整形して親コンポーザブルへ通知
-                            val newDate = String.format("%04d/%02d/%02d", year, month + 1, dayOfMonth)
-                            onDateChange(newDate)
-                        },
-                        calendar.get(Calendar.YEAR),
-                        calendar.get(Calendar.MONTH),
-                        calendar.get(Calendar.DAY_OF_MONTH)
-                    ).show()
+                        calendar.set(dateParts[0].toInt(), dateParts[1].toInt() - 1, dateParts[2].toInt())
+                    } catch (e: Exception) {}
+                    DatePickerDialog(context, { _, y, m, d -> onDateChange(String.format("%04d/%02d/%02d", y, m + 1, d)) }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
                 }
             ) {
-                Icon(
-                    imageVector = Icons.Default.DateRange,
-                    contentDescription = "日付を変更",
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                Icon(imageVector = Icons.Default.DateRange, contentDescription = "日付を変更", tint = MaterialTheme.colorScheme.primary)
             }
         }
 
-        // 上半分：内部が横スクロールするタイムラインコンテナ領域(重みを4にしてバランス調整)
+        // 横スクロールタイムラインエリア
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(4f)
-                .horizontalScroll(scrollState)
+            modifier = Modifier.fillMaxWidth().weight(4f).horizontalScroll(scrollState)
         ) {
-            // 背景を左から右へ貫く、時間軸のベースとなる薄い横線
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
-                    .padding(top = 30.dp) // 時間文字のすぐ下に重なるように位置を微調整
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-            )
+            // ベースのタイムライン横線
+            Box(modifier = Modifier.fillMaxWidth().height(2.dp).padding(top = 35.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)))
 
-            // 目盛りレイアウトと予定リストを縦に並べるコンテナ
-            Column(modifier = Modifier.fillMaxHeight()) {
+            // 背景グリッドと目盛り文字の位置ズレを完全に防ぐ一体型コンテナ構造
+            Row(modifier = Modifier.fillMaxHeight()) {
+                (0..23).forEach { hour ->
+                    val currentHourWidth = hourWidths[hour].dp
 
-                // 1.時間の目盛り行（数字と丸ドット）
-                Row(modifier = Modifier.height(60.dp)) {
-                    timeLabels.forEach { label ->
-                        // 各時間ごとに決められた横幅(100dp)の枠を確保
-                        Box(
-                            modifier = Modifier.width(hourWidth),
-                            contentAlignment = Alignment.TopCenter
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                // 目盛りの時間文字(例:06:00)
-                                Text(
-                                    text = label,
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                                )
-                                Spacer(modifier = Modifier.height(14.dp))
-                                // 横線の上に重なる、時間基準点の小さな丸ポチ
+                    Box(
+                        modifier = Modifier
+                            .width(currentHourWidth)
+                            .fillMaxHeight()
+                    ) {
+                        // 1. 背景の5分マスグリッド線
+                        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Start) {
+                            for (i in 0 until 12) {
+                                val blockIndex = (hour * 12) + i
+                                val stepWidth = dynamicFiveMinuteWidths[blockIndex].dp
+                                val isExpanded = stepWidth > (defaultStepWidth + 2.dp)
+
                                 Box(
                                     modifier = Modifier
-                                        .size(8.dp)
-                                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                        .width(stepWidth)
+                                        .fillMaxHeight()
+                                        .border(
+                                            width = if (i == 11) 1.dp else 0.4.dp,
+                                            color = MaterialTheme.colorScheme.primary.copy(
+                                                alpha = if (isExpanded) 0.3f else if (i == 11) 0.2f else 0.06f
+                                            )
+                                        )
                                 )
                             }
+                        }
+
+                        // 2. メイン目盛り（XX:00）
+                        Box(
+                            modifier = Modifier.align(Alignment.TopStart)
+                        ) {
+                            Column(
+                                modifier = Modifier.wrapContentWidth(),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                    text = String.format("%02d:00", hour),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.offset(x = 0.dp)
+                                )
+                                Spacer(modifier = Modifier.height(18.dp))
+                                Box(modifier = Modifier.size(7.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), CircleShape))
+                            }
+                        }
+
+                        // 3. 途中から広がる5分枠用の補助時間（XX:XX）の配置
+                        // 💡 【修正点】すべての5分を出すのではなく、登録されている予定の開始時間と終了時間にだけ文字を絞り込む
+                        var currentAccumulatedWidth = 0.dp
+                        for (m in 0 until 12) {
+                            val blockIndex = (hour * 12) + m
+                            val stepWidth = dynamicFiveMinuteWidths[blockIndex].dp
+                            val minuteValue = m * 5
+                            val timeString = String.format("%02d:%02d", hour, minuteValue)
+
+                            // 💡 いずれかの予定の「開始時刻」または「終了時刻」と完全一致するか判定
+                            val isMatchTime = todaysSchedules.any { it.time == timeString || it.endTime == timeString }
+
+                            if (isMatchTime && minuteValue != 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .offset(x = currentAccumulatedWidth)
+                                ) {
+                                    Column(horizontalAlignment = Alignment.Start) {
+                                        Text(
+                                            text = timeString,
+                                            fontSize = 9.sp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier
+                                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 3.dp, vertical = 1.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(19.dp))
+                                        Box(modifier = Modifier.size(5.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                                    }
+                                }
+                            }
+                            currentAccumulatedWidth += stepWidth
                         }
                     }
                 }
 
-                // 2.予定カードを被らないように上から縦に並べるリスト領域
+                // 最終24:00の線用目盛り
+                Box(modifier = Modifier.width(60.dp), contentAlignment = Alignment.TopStart) {
+                    Column(horizontalAlignment = Alignment.Start) {
+                        Text(text = "24:00", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f), fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(18.dp))
+                        Box(modifier = Modifier.size(7.dp).background(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), shape = CircleShape))
+                    }
+                }
+            }
+
+            // 予定カードレイアウト領域
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .padding(top = 55.dp)
+            ) {
                 LazyColumn(
                     modifier = Modifier.fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(bottom = 20.dp)
                 ) {
                     items(todaysSchedules) { schedule ->
-                        // 開始時刻を数値の位置に変換(例:"06:30"➔6.5)
                         val startParts = schedule.time.split(":")
                         val startHour = startParts.getOrNull(0)?.toFloatOrNull() ?: 0f
                         val startMinute = startParts.getOrNull(1)?.toFloatOrNull() ?: 0f
                         val startPosition = startHour + (startMinute / 60f)
 
-                        // 終了時刻を数値の位置に変換(例:"08:45"➔8.75)
                         val endParts = schedule.endTime.split(":")
-                        val endHour = endParts.getOrNull(0)?.toFloatOrNull() ?: (startPosition + 1f)
+                        val endHour = endParts.getOrNull(0)?.toIntOrNull() ?: startHour.toInt()
                         val endMinute = endParts.getOrNull(1)?.toFloatOrNull() ?: 0f
                         val endPosition = endHour + (endMinute / 60f)
 
-                        // 予定が何時間分あるか、引き算で長さ（倍率）を割り出す
-                        val duration = if (endPosition > startPosition) endPosition - startPosition else 1.0f
+                        val leftOffset = getOffsetUpToBlock(startPosition)
+                        val cardWidth = getOffsetUpToBlock(endPosition) - leftOffset
 
-                        // ドットの中心にぴったり合わせるため、目盛り幅の半分(50dp)を右へずらす補正を計算に組み込む
-                        val leftOffset = (hourWidth * startPosition) + (hourWidth / 2f)
-                        // カード自体の横幅を計算(例:2時間分なら100dp×2=200dp)
-                        val cardWidth = hourWidth * duration
-
-                        // カードを適切な横位置に配置するための1行レイアウト
                         Row(modifier = Modifier.fillMaxWidth()) {
-                            // カードの左側に、ドットの中心位置までの「目に見えない透明な隙間」を作る
                             Spacer(modifier = Modifier.width(leftOffset))
-
-                            // 横長に引き伸ばされた予定カード本体を配置
                             HorizontalTimelineCard(
                                 schedule = schedule,
                                 cardWidth = cardWidth,
@@ -226,30 +332,18 @@ fun TimelineScreen(
             }
         }
 
-        // 中央：振り返りエリアの区切り文字
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        // 振り返りエリアの境界線
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Divider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-            Text(
-                text = "振り返りエリア",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
+            Text(text = "振り返りエリア", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 8.dp))
             Divider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
         }
 
-        // 下半分：新設した「振り返りダッシュボードエリア」(重みを5にして広めに確保)
+        // 下半分：振り返りダッシュボードエリア
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(5f)
-                .padding(bottom = 8.dp),
+            modifier = Modifier.fillMaxWidth().weight(5f).padding(bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 3.未完了のタスク
             Card(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 shape = RoundedCornerShape(12.dp),
@@ -262,24 +356,18 @@ fun TimelineScreen(
                         Text(text = "未完了 TODO", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
                     Spacer(modifier = Modifier.height(6.dp))
-
                     if (todaysIncompleteTasks.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text(text = "この日の未完了タスクはありません！✨", fontSize = 13.sp, color = Color.Gray)
                         }
                     } else {
-                        // 未完了のリストだけをスクロールリストで下に並べる
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             items(todaysIncompleteTasks) { task ->
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.fillMaxWidth().clickable { onTimelineItemClick(task) }.padding(vertical = 2.dp)
                                 ) {
-                                    Checkbox(
-                                        checked = task.isCompleted,
-                                        onCheckedChange = { isChecked -> viewModel.toggleScheduleStatus(task, isChecked) },
-                                        modifier = Modifier.size(28.dp)
-                                    )
+                                    Checkbox(checked = task.isCompleted, onCheckedChange = { isChecked -> viewModel.toggleScheduleStatus(task, isChecked) }, modifier = Modifier.size(28.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(text = task.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Spacer(modifier = Modifier.weight(1f))
@@ -291,7 +379,6 @@ fun TimelineScreen(
                 }
             }
 
-            // 4.「カテゴリ別進捗」カードセクション
             Card(
                 modifier = Modifier.fillMaxWidth().wrapContentHeight(),
                 shape = RoundedCornerShape(12.dp),
@@ -299,23 +386,15 @@ fun TimelineScreen(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(text = "📊", fontSize = 16.sp, modifier = Modifier.padding(end = 6.dp))
                             Text(text = "カテゴリ別進捗", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         }
-                        // 全体の達成状況数をテキスト表示
                         Text(text = "達成度: $completedCount/$totalCount", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.height(10.dp))
-
-                    // 今日のタスクをカテゴリ（仕事、プライベートなど）ごとに分類して進捗バーを生成
                     val categoriesWithTasks = todaysSchedules.groupBy { if (it.category.isBlank()) "未分類" else it.category }
-
                     if (categoriesWithTasks.isEmpty()) {
                         Text(text = "データがありません", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
                     } else {
@@ -324,21 +403,13 @@ fun TimelineScreen(
                                 val catTotal = list.size
                                 val catCompleted = list.count { it.isCompleted }
                                 val progressFactor = if (catTotal > 0) catCompleted.toFloat() / catTotal.toFloat() else 0f
-                                val percentage = (progressFactor * 100).toInt()
-
                                 Column {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text(text = categoryName, fontSize = 13.sp)
-                                        Text(text = "$percentage%", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text(text = "${(progressFactor * 100).toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
-                                    // 進捗を視覚化する進捗バー
-                                    LinearProgressIndicator(
-                                        progress = progressFactor,
-                                        modifier = Modifier.fillMaxWidth().height(6.dp),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                                    )
+                                    LinearProgressIndicator(progress = progressFactor, modifier = Modifier.fillMaxWidth().height(6.dp), color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
                                 }
                             }
                         }
@@ -349,7 +420,6 @@ fun TimelineScreen(
     }
 }
 
-// タイムライン上に配置される横長予定カードのデザイン構成
 @Composable
 private fun HorizontalTimelineCard(
     schedule: Schedule,
@@ -370,68 +440,45 @@ private fun HorizontalTimelineCard(
     else if (isOverdue) Color(0xFFFFEBEE)
     else MaterialTheme.colorScheme.surfaceVariant
 
-    // 24時間表記を「午前/午後 XX:XX」の形式に変換するロジック
-    fun formatTo12Hour(timeStr: String?): String {
-        if (timeStr.isNullOrBlank()) return "未設定"
-        val timeParts = timeStr.split(":")
-        val hour = timeParts.getOrNull(0)?.toIntOrNull() ?: return timeStr
-        val amPmSystem = if (hour < 12) "午前" else "午後"
-        val displayHour = when {
-            hour == 0 -> 12
-            hour > 12 -> hour - 12
-            else -> hour
-        }
-        val minute = timeParts.getOrNull(1) ?: "00"
-        return "$amPmSystem${String.format("%02d", displayHour)}:$minute"
-    }
-
-    val displayStartTime = formatTo12Hour(schedule.time)
-    val displayEndTime = formatTo12Hour(schedule.endTime)
-
     Column(
         modifier = Modifier
             .width(cardWidth)
             .border(BorderStroke(1.5.dp, borderColor), RoundedCornerShape(8.dp))
             .background(backgroundColor, RoundedCornerShape(8.dp))
             .clickable { expanded = !expanded }
-            .padding(8.dp)
+            .padding(vertical = 6.dp, horizontal = 8.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Checkbox(
-                checked = schedule.isCompleted,
-                onCheckedChange = { isChecked -> viewModel.toggleScheduleStatus(schedule, isChecked) },
-                modifier = Modifier.size(24.dp).padding(end = 4.dp)
-            )
-            Text(
-                text = schedule.text,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-                style = androidx.compose.ui.text.TextStyle(
-                    textDecoration = if (schedule.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else androidx.compose.ui.text.style.TextDecoration.None
-                )
-            )
-            Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp).rotate(arrowRotationDegree))
-        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = schedule.isCompleted, onCheckedChange = { isChecked -> viewModel.toggleScheduleStatus(schedule, isChecked) }, modifier = Modifier.size(22.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
-        // 午前・午後を含めた時間帯をカード内に表示
-        Text(
-            text = "$displayStartTime 〜 $displayEndTime",
-            fontSize = 10.sp,
-            color = if (isDark) md_theme_dark_time else md_theme_light_time,
-            modifier = Modifier.padding(start = 4.dp, top = 2.dp)
-        )
+                Text(
+                    text = schedule.text,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = androidx.compose.ui.text.TextStyle(
+                        textDecoration = if (schedule.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else androidx.compose.ui.text.style.TextDecoration.None
+                    )
+                )
+            }
+
+            Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp).rotate(arrowRotationDegree))
+        }
 
         AnimatedVisibility(visible = expanded) {
             Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp, end = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Divider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                 Text(text = "📅 日　　付: ${schedule.date}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(text = "⏰ 時　　間: $displayStartTime 〜 $displayEndTime", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                //Text(text = "📌 予　　定: ${schedule.text}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(text = "📝 メ　　モ: ${schedule.detail.ifEmpty { "なし" }}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(text = "🏷️ カテゴリ: ${schedule.category.ifEmpty { "なし" }}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = { onEditItem(schedule) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp), modifier = Modifier.height(28.dp)) {
                         Text("編集する", fontWeight = FontWeight.Bold, fontSize = 12.sp)

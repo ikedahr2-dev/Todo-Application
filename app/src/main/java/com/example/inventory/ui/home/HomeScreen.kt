@@ -598,6 +598,7 @@ private fun LazyListScope.scheduleMainList(
         }
     }
 
+    //完了した予定の一括削除
     if (completedSchedules.isNotEmpty()) {
         item {
             Row(
