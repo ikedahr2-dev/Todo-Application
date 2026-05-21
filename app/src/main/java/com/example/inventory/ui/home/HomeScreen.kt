@@ -454,7 +454,7 @@ private fun ScheduleItemRow(
     )
 
     val currentTime = System.currentTimeMillis()
-    val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
+    val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.endTime)
     val isOverdue = taskTimeMillis != null && taskTimeMillis < currentTime && !schedule.isCompleted
 
     val isDark = isSystemInDarkTheme()

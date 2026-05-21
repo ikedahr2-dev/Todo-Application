@@ -431,7 +431,7 @@ private fun HorizontalTimelineCard(
     val arrowRotationDegree by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "ArrowAnimation")
 
     val currentTime = System.currentTimeMillis()
-    val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
+    val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.endTime)
     val isOverdue = taskTimeMillis != null && taskTimeMillis < currentTime && !schedule.isCompleted
 
     val isDark = isSystemInDarkTheme()

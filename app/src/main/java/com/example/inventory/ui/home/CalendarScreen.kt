@@ -2,10 +2,12 @@ package com.example.inventory.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,6 +57,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.CircleShape
+import com.example.inventory.convertDateTimeToMillis
+import com.example.inventory.ui.theme.md_theme_light_primary
 
 // カレンダー表示とスケジュール確認を行う画面構成
 @OptIn(ExperimentalMaterial3Api::class)
@@ -186,6 +190,16 @@ fun CalendarScreen(
                     label = "ArrowAnimation"
                 )
 
+                val currentTime = System.currentTimeMillis()
+                val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.endTime)
+                val isOverdue = taskTimeMillis != null && taskTimeMillis < currentTime && !schedule.isCompleted
+
+                val isDark = isSystemInDarkTheme()
+                val borderColor = if (isOverdue) Color(0xFF94403E) else md_theme_light_primary
+                val backgroundColor = if (isOverdue && isDark) MaterialTheme.colorScheme.surfaceVariant
+                else if (isOverdue) Color(0xFFFFEBEE)
+                else MaterialTheme.colorScheme.surfaceVariant
+
                 // 開始・終了時刻をそれぞれ12時間表記に変換
                 val displayStartTime = formatTo12Hour(schedule.time)
                 val displayEndTime = formatTo12Hour(schedule.endTime)
@@ -195,12 +209,8 @@ fun CalendarScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
-                        .border(
-                            width = 1.5.dp,
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                        .border(BorderStroke(1.5.dp, borderColor), RoundedCornerShape(8.dp))
+                        .background(backgroundColor, RoundedCornerShape(8.dp))
                         .clickable { expanded = !expanded } // タップでアコーディオン開閉
                         .padding(12.dp)
                 ) {
