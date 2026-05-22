@@ -59,7 +59,6 @@ object HomeDestination : NavigationDestination {
     override val titleRes = R.string.app_name
 }
 
-@Suppress("OPT_IN_IS_NOT_ENABLED", "UNCHECKED_CAST")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
@@ -90,9 +89,6 @@ fun HomeScreen(
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var newCategoryText by remember { mutableStateOf("") }
     var categoryToDelete by remember { mutableStateOf<String?>(null) }
-
-    // 💡 予定の削除確認用ステートを追加
-    var scheduleToDelete by remember { mutableStateOf<Schedule?>(null) }
 
     val selectedCategoryTab = if (selectedFilterCategory.isBlank()) "すべて" else selectedFilterCategory
 
@@ -311,11 +307,8 @@ fun HomeScreen(
                                     onEditSavedItem = { schedule ->
                                         selectedDate = schedule.date
                                         selectedTime = schedule.time
-                                        selectedEndTime = schedule.endTime ?: ""
+                                        selectedEndTime = schedule.endTime ?: "" // 追加
                                         viewModel.onEditSavedItem(schedule)
-                                    },
-                                    onLongDeleteItem = { schedule -> // 💡 長押しされた予定を受け取る
-                                        scheduleToDelete = schedule
                                     }
                                 )
 
@@ -326,18 +319,21 @@ fun HomeScreen(
                 }
             }
 
-            // 入力ダイアログ
+            // 💡 1箇所目：カレンダー/タイムライン画面側の入力ダイアログ
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
                     initialText = uiState.editingItem?.text ?: "",
                     initialDetail = uiState.editingItem?.detail ?: "",
+                    // 💡 引数に initialReminderMinutes を渡す（新規なら5、編集なら保存されている値）
+                    initialReminderMinutes = uiState.editingItem?.reminderMinutes ?: 5,
                     onDismiss = { viewModel.onDismissInputBox() },
-                    onSave = { text, date, time, endTime, category, detail ->
+                    // 💡 onSave に reminderMinutes を追加して ViewModel へ渡す
+                    onSave = { text, date, time, endTime, category, detail, reminderMinutes ->
                         val item = uiState.editingItem
                         if (item != null) {
-                            viewModel.updateItem(item, text, date, time, endTime, category, detail)
+                            viewModel.updateItem(item, text, date, time, endTime, category, detail, reminderMinutes)
                         } else {
-                            viewModel.addText(text, date, time, endTime, category, detail)
+                            viewModel.addText(text, date, time, endTime, category, detail, reminderMinutes)
                         }
                         viewModel.onDismissInputBox()
                     },
@@ -442,37 +438,15 @@ fun HomeScreen(
             dismissButton = { TextButton(onClick = { categoryToDelete = null }) { Text("キャンセル") } }
         )
     }
-
-    // 💡 予定の削除確認ダイアログを追加
-    scheduleToDelete?.let { schedule ->
-        AlertDialog(
-            onDismissRequest = { scheduleToDelete = null },
-            title = { Text("予定の削除") },
-            text = { Text("予定「${schedule.text}」を削除しますか？") },
-            confirmButton = {
-                Button(
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    onClick = {
-                        viewModel.deleteItem(schedule)
-                        scheduleToDelete = null
-                    }
-                ) { Text("削除", color = MaterialTheme.colorScheme.onError) }
-            },
-            dismissButton = { TextButton(onClick = { scheduleToDelete = null }) { Text("キャンセル") } }
-        )
-    }
 }
 
 // 1列に「タイトル」と「開始時間 ➔ 終了時間」を綺麗に収めるレイアウト
-@Suppress("OPT_IN_IS_NOT_ENABLED")
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ScheduleItemRow(
     schedule: Schedule,
     onEditItem: (Schedule) -> Unit,
-    onLongDelete: (Schedule) -> Unit,
     viewModel: HomeViewModel
-){
+) {
     var expanded by rememberSaveable { mutableStateOf(false) }
 
     val arrowRotationDegree by animateFloatAsState(
@@ -490,6 +464,7 @@ private fun ScheduleItemRow(
     else if (isOverdue) Color(0xFFFFEBEE)
     else MaterialTheme.colorScheme.surfaceVariant
 
+    // 24時間表記を12時間表記に整形するヘルパー関数
     fun formatTo12Hour(timeStr: String?): String {
         if (timeStr.isNullOrBlank()) return "未設定"
         val timeParts = timeStr.split(":")
@@ -505,7 +480,7 @@ private fun ScheduleItemRow(
     }
 
     val displayStartTime = formatTo12Hour(schedule.time)
-    val displayEndTime = formatTo12Hour(schedule.endTime)
+    val displayEndTime = formatTo12Hour(schedule.endTime) // 終了時間の取得
 
     Column(
         modifier = Modifier
@@ -513,12 +488,10 @@ private fun ScheduleItemRow(
             .padding(vertical = 4.dp)
             .border(1.5.dp, borderColor, RoundedCornerShape(8.dp))
             .background(backgroundColor, RoundedCornerShape(8.dp))
-            .combinedClickable(
-                onClick = { expanded = !expanded },
-                onLongClick = { onLongDelete(schedule) }
-            )
+            .clickable { expanded = !expanded }
             .padding(12.dp)
     ) {
+        // 1行目：チェックボックス、タイトル、時間帯、矢印を一列にスッキリ配置
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -529,6 +502,7 @@ private fun ScheduleItemRow(
                 modifier = Modifier.padding(end = 8.dp)
             )
 
+            // タイトル
             Text(
                 text = schedule.text,
                 fontSize = 20.sp,
@@ -541,6 +515,7 @@ private fun ScheduleItemRow(
                 )
             )
 
+            // 時間を「開始 ➔ 終了」で一列に配置する領域
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 6.dp)
@@ -561,6 +536,7 @@ private fun ScheduleItemRow(
             )
         }
 
+        // 2行目以降：タップされて開く詳細エリア
         AnimatedVisibility(visible = expanded) {
             Column(
                 modifier = Modifier
@@ -573,14 +549,26 @@ private fun ScheduleItemRow(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                 )
 
+                // 日付
                 val displayDate_day = if (!schedule.date.isNullOrBlank()) "${schedule.date} " else "未設定"
                 Text(text = "📅 日　　付: $displayDate_day", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
+                // 時間
                 Text(text = "⏰ 時　　間: $displayStartTime ～ $displayEndTime", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
+                // 💡 通知時間を詳細画面にも表示する（オマケ）
+                val reminderText = when (schedule.reminderMinutes) {
+                    -1 -> "通知なし"
+                    0 -> "時間ピッタリ"
+                    else -> "${schedule.reminderMinutes}分前"
+                }
+                Text(text = "🔔 通　　知: $reminderText", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                // メモ
                 val displayDetail = if (!schedule.detail.isNullOrBlank()) schedule.detail else "なし"
                 Text(text = "📝 メ　　モ: $displayDetail", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
+                // カテゴリ
                 val displayCategory = if (!schedule.category.isNullOrBlank()) schedule.category else "なし"
                 Text(text = "🏷️ カテゴリ: $displayCategory", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
@@ -606,8 +594,7 @@ private fun LazyListScope.scheduleMainList(
     groupedUncompleted: Map<String, List<Schedule>>,
     completedSchedules: List<Schedule>,
     viewModel: HomeViewModel,
-    onEditSavedItem: (Schedule) -> Unit,
-    onLongDeleteItem: (Schedule) -> Unit // 💡 引数を追加
+    onEditSavedItem: (Schedule) -> Unit
 ) {
     groupedUncompleted.forEach { (date, schedules) ->
         item {
@@ -615,12 +602,7 @@ private fun LazyListScope.scheduleMainList(
         }
 
         items(schedules) { schedule ->
-            ScheduleItemRow(
-                schedule = schedule,
-                onEditItem = { onEditSavedItem(schedule) },
-                onLongDelete = { onLongDeleteItem(it) }, // 💡 直接削除せず、上の関数に丸投げ
-                viewModel = viewModel
-            )
+            ScheduleItemRow(schedule = schedule, onEditItem = { onEditSavedItem(schedule) }, viewModel = viewModel)
         }
     }
 
@@ -650,12 +632,7 @@ private fun LazyListScope.scheduleMainList(
         }
 
         items(completedSchedules) { schedule ->
-            ScheduleItemRow(
-                schedule = schedule,
-                onEditItem = { onEditSavedItem(schedule) },
-                onLongDelete = { onLongDeleteItem(it) }, // 💡 直接削除せず、上の関数に丸投げ
-                viewModel = viewModel
-            )
+            ScheduleItemRow(schedule = schedule, onEditItem = { onEditSavedItem(schedule) }, viewModel = viewModel)
         }
     }
 }

@@ -24,18 +24,22 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                     // 未来のアラームの再予約ループだけを残します
                     for (item in allItems) {
                         val taskTimeMillis = convertDateTimeToMillis(item.date, item.time)
+                        val reminderMinutes = item.reminderMinutes // 💡 データベースから通知時間を取得
 
-                        // 5分前を計算した時間が「現在より未来」かつ「まだ完了していない」ものだけを自動で再予約
-                        if (taskTimeMillis != null &&
-                            (taskTimeMillis - (5 * 60 * 1000)) > currentTime &&
-                            !item.isCompleted
-                        ) {
-                            scheduleTodoAlarm(
-                                context = context,
-                                taskId = item.id,
-                                taskTitle = item.text,
-                                taskTimeMillis = taskTimeMillis
-                            )
+                        // 💡 通知なし(-1)の場合はスキップ
+                        if (reminderMinutes >= 0 && taskTimeMillis != null) {
+                            // 設定された分数前を計算した時間が「現在より未来」かつ「まだ完了していない」ものだけ再予約
+                            val alarmTimeMillis = taskTimeMillis - (reminderMinutes * 60 * 1000L)
+
+                            if (alarmTimeMillis > currentTime && !item.isCompleted) {
+                                scheduleTodoAlarm(
+                                    context = context,
+                                    taskId = item.id,
+                                    taskTitle = item.text,
+                                    taskTimeMillis = taskTimeMillis,
+                                    reminderMinutes = reminderMinutes // 💡 引数を追加
+                                )
+                            }
                         }
                     }
                 } catch (e: Exception) {
@@ -57,7 +61,7 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                     val database = InventoryDatabase.getDatabase(context)
                     val dao = database.scheduleDao()
 
-                    // フリーズを防を防ぐため、全体リストを1回だけ取得し、その中から対象を探す
+                    // フリーズを防ぐため、全体リストを1回だけ取得し、その中から対象を探す
                     val allItems = dao.getAllSchedule().first()
                     val currentSchedule = allItems.find { it.id == taskId }
 
@@ -80,7 +84,8 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                         cancelTodoAlarm(
                             context = context,
                             taskId = taskId,
-                            taskTitle = currentSchedule.text
+                            taskTitle = currentSchedule.text,
+                            reminderMinutes = currentSchedule.reminderMinutes // 💡 引数を追加
                         )
 
                         // タップされた通知バナー自体を通知欄から消去する
@@ -94,9 +99,9 @@ class TodoAlarmReceiver : BroadcastReceiver() {
             return // 完了ボタンの処理が終わったらここで抜ける
         }
 
-        // 通常の「時間（5分前）になった」ときの通知処理
+        // 通常の「時間になった」ときの通知処理
         val title = intent.getStringExtra("TODO_TITLE") ?: "タスクの通知"
-        val content = intent.getStringExtra("TODO_CONTENT") ?: "5分前です"
+        val content = intent.getStringExtra("TODO_CONTENT") ?: "時間です"
 
         val notificationId = intent.getIntExtra("TODO_ID", -1)
 
