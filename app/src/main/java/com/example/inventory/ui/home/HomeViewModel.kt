@@ -128,7 +128,7 @@ class HomeViewModel(
                 text = text,
                 date = date,
                 time = time,
-                endTime = endTime, // 💡追加
+                endTime = endTime,
                 category = category,
                 detail = detail,
                 data = taskTimeMillis
@@ -154,7 +154,6 @@ class HomeViewModel(
         }
     }
 
-    // 💡 newEndTime のみを追加
     fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String, newEndTime: String, newCategory: String, newDetail: String) {
         viewModelScope.launch {
             val taskTimeMillis = convertDateTimeToMillis(newDate, newTime) ?: System.currentTimeMillis()

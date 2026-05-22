@@ -24,11 +24,13 @@
     <string name="no_item_description">予定はありません</string>
     <string name="no_item_OK">OK</string>
     <string name="cancel">キャンセル</string>
-    <string name="stay_schedule">予定を入力してください</string>
+    <string name="stay_schedule">*予定を入力してください</string>
     <string name="all_stay_schedule">予定を入力する</string>
     <string name="schedule_enter">予定</string>
     <string name="enter">決定</string>
     <string name="time_enter">時間</string>
+    <string name="StartTime_enter">開始時間</string>
+    <string name="EndTime_enter">終了時間</string>
     <string name="date_enter">日付</string>
     <string name="delete">削除</string>
 </resources>

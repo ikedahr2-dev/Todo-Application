@@ -103,14 +103,14 @@ fun ScheduleInputDialog(
         dismissButton = {
             Row {
                 // 既存の予定を編集しているとき（onDeleteがヌルでないとき）だけ削除ボタンを出現させる
-                if (onDelete != null) {
+                /*if (onDelete != null) {
                     TextButton(
                         onClick = {
                             onDelete()
                             onDismiss()
                         }
                     ) { Text(stringResource(R.string.delete)) }
-                }
+                }*/
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             }
         },
@@ -141,7 +141,7 @@ fun ScheduleInputDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // ----- 日付選択 -----
-                Text(text = "予定日", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                Text(text = "*予定日", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                 Button(onClick = onSelectDate, modifier = Modifier.fillMaxWidth()) {
                     Text(if (selectedDate.isEmpty()) stringResource(R.string.date_enter) else selectedDate)
                 }
@@ -149,18 +149,34 @@ fun ScheduleInputDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // ----- 時間設定（開始・終了） -----
-                Text(text = "時間設定", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                Text(text = "*時間設定", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // 開始時間設定ボタン（午前/午後表記を適用）
-                    Button(onClick = onSelectTime, modifier = Modifier.weight(1f)) {
-                        Text(if (selectedTime.isEmpty()) "開始時間" else convertTo12HourLabel(selectedTime))
+                    Button(
+                        onClick = onSelectTime,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            if (selectedTime.isEmpty())
+                                stringResource(R.string.StartTime_enter)
+                            else
+                                convertTo12HourLabel(selectedTime)
+                        )
                     }
                     // 終了時間設定ボタン（午前/午後表記を適用）
-                    Button(onClick = onSelectEndTime, modifier = Modifier.weight(1f)) {
-                        Text(if (selectedEndTime.isEmpty()) "終了時間" else convertTo12HourLabel(selectedEndTime))
+                    Button(
+                        onClick = onSelectEndTime,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            if (selectedEndTime.isEmpty())
+                                stringResource(R.string.EndTime_enter)
+                            else
+                                convertTo12HourLabel(selectedEndTime)
+                        )
                     }
                 }
 
