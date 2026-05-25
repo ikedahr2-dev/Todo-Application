@@ -72,8 +72,6 @@ fun HomeScreen(
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
-
-    // 終了予定時刻用のピッカー管理
     var showEndTimePicker by remember { mutableStateOf(false) }
 
     var selectedDate by remember { mutableStateOf("") }
@@ -90,6 +88,9 @@ fun HomeScreen(
     var newCategoryText by remember { mutableStateOf("") }
     var categoryToDelete by remember { mutableStateOf<String?>(null) }
 
+    // 💡 追加：長押しで削除しようとしているタスクを保持する変数
+    var scheduleToDelete by remember { mutableStateOf<Schedule?>(null) }
+
     val selectedCategoryTab = if (selectedFilterCategory.isBlank()) "すべて" else selectedFilterCategory
 
     Scaffold(
@@ -105,7 +106,7 @@ fun HomeScreen(
                     onClick = {
                         selectedDate = ""
                         selectedTime = ""
-                        selectedEndTime = "" // クリア処理を追加
+                        selectedEndTime = ""
                         viewModel.onAddClick()
                     },
                     shape = CircleShape,
@@ -114,10 +115,7 @@ fun HomeScreen(
                     modifier = Modifier
                         .offset(y = (-15).dp)
                         .size(75.dp)
-                        .border(
-                            BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
-                            CircleShape
-                        )
+                        .border(BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary), CircleShape)
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null)
                 }
@@ -125,13 +123,9 @@ fun HomeScreen(
         },
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
-
             when (currentScreenMode) {
                 1 -> {
-                    // ------------------ カレンダー画面モード ------------------
-                    LaunchedEffect(Unit) {
-                        selectedDate = ""
-                    }
+                    LaunchedEffect(Unit) { selectedDate = "" }
                     Box(modifier = Modifier.padding(innerPadding)) {
                         CalendarScreen(
                             scheduleList = uiState.scheduleList,
@@ -145,13 +139,13 @@ fun HomeScreen(
                             onCalendarItemClick = { schedule ->
                                 selectedDate = schedule.date
                                 selectedTime = schedule.time
-                                selectedEndTime = schedule.endTime ?: "" // 追加
+                                selectedEndTime = schedule.endTime ?: ""
                                 viewModel.onEditSavedItem(schedule)
                             },
                             onAddClick = {
                                 if (selectedDate.isNotBlank()) {
                                     selectedTime = ""
-                                    selectedEndTime = "" // 追加
+                                    selectedEndTime = ""
                                     viewModel.onAddClick()
                                 }
                             },
@@ -160,11 +154,9 @@ fun HomeScreen(
                     }
                 }
                 2 -> {
-                    // ------------------ タイムライン画面モード ------------------
                     if (selectedDate.isBlank()) {
                         selectedDate = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date())
                     }
-
                     Box(modifier = Modifier.padding(innerPadding)) {
                         TimelineScreen(
                             scheduleList = uiState.scheduleList,
@@ -174,14 +166,13 @@ fun HomeScreen(
                             onTimelineItemClick = { schedule ->
                                 selectedDate = schedule.date
                                 selectedTime = schedule.time
-                                selectedEndTime = schedule.endTime ?: "" // 追加
+                                selectedEndTime = schedule.endTime ?: ""
                                 viewModel.onEditSavedItem(schedule)
                             }
                         )
                     }
                 }
                 else -> {
-                    // ------------------ リスト画面モード ------------------
                     Column(
                         modifier = Modifier
                             .padding(innerPadding)
@@ -195,7 +186,6 @@ fun HomeScreen(
                         ) {
                             items(dynamicCategories) { category ->
                                 val isSelected = category == selectedCategoryTab
-
                                 Surface(
                                     shape = CircleShape,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
@@ -208,9 +198,7 @@ fun HomeScreen(
                                             onClick = {
                                                 if (category == "すべて") viewModel.onSelectFilterCategory("") else viewModel.onSelectFilterCategory(category)
                                             },
-                                            onLongClick = {
-                                                if (category != "すべて") categoryToDelete = category
-                                            }
+                                            onLongClick = { if (category != "すべて") categoryToDelete = category }
                                         )
                                 ) {
                                     Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -218,13 +206,10 @@ fun HomeScreen(
                                     }
                                 }
                             }
-
                             item {
                                 Surface(
                                     onClick = { showAddCategoryDialog = true },
-                                    modifier = Modifier
-                                        .padding(vertical = 16.dp)
-                                        .size(40.dp),
+                                    modifier = Modifier.padding(vertical = 16.dp).size(40.dp),
                                     shape = CircleShape,
                                     color = MaterialTheme.colorScheme.surfaceVariant,
                                     contentColor = MaterialTheme.colorScheme.primary,
@@ -307,9 +292,11 @@ fun HomeScreen(
                                     onEditSavedItem = { schedule ->
                                         selectedDate = schedule.date
                                         selectedTime = schedule.time
-                                        selectedEndTime = schedule.endTime ?: "" // 追加
+                                        selectedEndTime = schedule.endTime ?: ""
                                         viewModel.onEditSavedItem(schedule)
-                                    }
+                                    },
+                                    // 💡 追加：長押しされたら削除変数にセット
+                                    onDeleteSavedItem = { schedule -> scheduleToDelete = schedule }
                                 )
 
                                 item { Spacer(modifier = Modifier.height(100.dp)) }
@@ -319,15 +306,12 @@ fun HomeScreen(
                 }
             }
 
-            // 💡 1箇所目：カレンダー/タイムライン画面側の入力ダイアログ
             if (uiState.showInputBox) {
                 ScheduleInputDialog(
                     initialText = uiState.editingItem?.text ?: "",
                     initialDetail = uiState.editingItem?.detail ?: "",
-                    // 💡 引数に initialReminderMinutes を渡す（新規なら5、編集なら保存されている値）
                     initialReminderMinutes = uiState.editingItem?.reminderMinutes ?: 5,
                     onDismiss = { viewModel.onDismissInputBox() },
-                    // 💡 onSave に reminderMinutes を追加して ViewModel へ渡す
                     onSave = { text, date, time, endTime, category, detail, reminderMinutes ->
                         val item = uiState.editingItem
                         if (item != null) {
@@ -350,7 +334,6 @@ fun HomeScreen(
                 )
             }
 
-            // 開始日付選択
             if (showDatePicker) {
                 val datePickerState = rememberDatePickerState()
                 DatePickerDialog(
@@ -366,7 +349,6 @@ fun HomeScreen(
                 ) { DatePicker(state = datePickerState) }
             }
 
-            // 開始時刻選択
             if (showTimePicker) {
                 val timePickerState = rememberTimePickerState()
                 AlertDialog(
@@ -382,7 +364,6 @@ fun HomeScreen(
                 )
             }
 
-            // 終了時刻選択
             if (showEndTimePicker) {
                 val timePickerState = rememberTimePickerState()
                 AlertDialog(
@@ -400,14 +381,30 @@ fun HomeScreen(
         }
     }
 
-    // カテゴリー追加・削除ダイアログ
+    // 💡 追加：タスク削除の確認ダイアログ
+    scheduleToDelete?.let { schedule ->
+        AlertDialog(
+            onDismissRequest = { scheduleToDelete = null },
+            title = { Text("予定の削除") },
+            text = { Text("予定「${schedule.text}」を削除しますか？") },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    onClick = {
+                        viewModel.deleteItem(schedule)
+                        scheduleToDelete = null // 削除したらダイアログを閉じる
+                    }
+                ) { Text("削除", color = MaterialTheme.colorScheme.onError) }
+            },
+            dismissButton = { TextButton(onClick = { scheduleToDelete = null }) { Text("キャンセル") } }
+        )
+    }
+
     if (showAddCategoryDialog) {
         AlertDialog(
             onDismissRequest = { showAddCategoryDialog = false },
             title = { Text("新しいカテゴリーを追加") },
-            text = {
-                OutlinedTextField(value = newCategoryText, onValueChange = { newCategoryText = it }, label = { Text("カテゴリー名") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            },
+            text = { OutlinedTextField(value = newCategoryText, onValueChange = { newCategoryText = it }, label = { Text("カテゴリー名") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
             confirmButton = {
                 Button(onClick = {
                     if (newCategoryText.isNotBlank()) {
@@ -440,11 +437,13 @@ fun HomeScreen(
     }
 }
 
-// 1列に「タイトル」と「開始時間 ➔ 終了時間」を綺麗に収めるレイアウト
+// 💡 onDeleteItem の引数を追加し、長押し（combinedClickable）に対応
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ScheduleItemRow(
     schedule: Schedule,
     onEditItem: (Schedule) -> Unit,
+    onDeleteItem: (Schedule) -> Unit, // 💡 追加
     viewModel: HomeViewModel
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -464,7 +463,6 @@ private fun ScheduleItemRow(
     else if (isOverdue) Color(0xFFFFEBEE)
     else MaterialTheme.colorScheme.surfaceVariant
 
-    // 24時間表記を12時間表記に整形するヘルパー関数
     fun formatTo12Hour(timeStr: String?): String {
         if (timeStr.isNullOrBlank()) return "未設定"
         val timeParts = timeStr.split(":")
@@ -480,7 +478,7 @@ private fun ScheduleItemRow(
     }
 
     val displayStartTime = formatTo12Hour(schedule.time)
-    val displayEndTime = formatTo12Hour(schedule.endTime) // 終了時間の取得
+    val displayEndTime = formatTo12Hour(schedule.endTime)
 
     Column(
         modifier = Modifier
@@ -488,10 +486,13 @@ private fun ScheduleItemRow(
             .padding(vertical = 4.dp)
             .border(1.5.dp, borderColor, RoundedCornerShape(8.dp))
             .background(backgroundColor, RoundedCornerShape(8.dp))
-            .clickable { expanded = !expanded }
+            // 💡 clickable から combinedClickable に変更（長押し対応）
+            .combinedClickable(
+                onClick = { expanded = !expanded },
+                onLongClick = { onDeleteItem(schedule) }
+            )
             .padding(12.dp)
     ) {
-        // 1行目：チェックボックス、タイトル、時間帯、矢印を一列にスッキリ配置
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -502,7 +503,6 @@ private fun ScheduleItemRow(
                 modifier = Modifier.padding(end = 8.dp)
             )
 
-            // タイトル
             Text(
                 text = schedule.text,
                 fontSize = 20.sp,
@@ -510,78 +510,43 @@ private fun ScheduleItemRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
-                style = androidx.compose.ui.text.TextStyle(
-                    textDecoration = if (schedule.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else androidx.compose.ui.text.style.TextDecoration.None
-                )
+                style = androidx.compose.ui.text.TextStyle(textDecoration = if (schedule.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else androidx.compose.ui.text.style.TextDecoration.None)
             )
 
-            // 時間を「開始 ➔ 終了」で一列に配置する領域
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 6.dp)
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
                 val timeColor = if (isSystemInDarkTheme()) md_theme_dark_time else md_theme_light_time
                 Text(text = displayStartTime, fontSize = 14.sp, color = timeColor)
                 Text(text = " ➔ ", fontSize = 12.sp, color = timeColor.copy(alpha = 0.6f))
                 Text(text = " ${displayEndTime}", fontSize = 14.sp, color = timeColor)
             }
 
-            Icon(
-                imageVector = Icons.Default.KeyboardArrowDown,
-                contentDescription = if (expanded) "閉じる" else "詳細を開く",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .size(26.dp)
-                    .rotate(arrowRotationDegree)
-            )
+            Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(26.dp).rotate(arrowRotationDegree))
         }
 
-        // 2行目以降：タップされて開く詳細エリア
         AnimatedVisibility(visible = expanded) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp, start = 8.dp, end = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Divider(
-                    modifier = Modifier.padding(bottom = 6.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                )
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp, start = 8.dp, end = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Divider(modifier = Modifier.padding(bottom = 6.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
 
-                // 日付
                 val displayDate_day = if (!schedule.date.isNullOrBlank()) "${schedule.date} " else "未設定"
-                Text(text = "📅 日　　付: $displayDate_day", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = "📅 日  付: $displayDate_day", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = "⏰ 時  間: $displayStartTime ～ $displayEndTime", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                // 時間
-                Text(text = "⏰ 時　　間: $displayStartTime ～ $displayEndTime", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                // 💡 通知時間を詳細画面にも表示する（オマケ）
                 val reminderText = when (schedule.reminderMinutes) {
                     -1 -> "通知なし"
                     0 -> "時間ピッタリ"
                     else -> "${schedule.reminderMinutes}分前"
                 }
-                Text(text = "🔔 通　　知: $reminderText", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = "🔔 通  知: $reminderText", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                // メモ
                 val displayDetail = if (!schedule.detail.isNullOrBlank()) schedule.detail else "なし"
-                Text(text = "📝 メ　　モ: $displayDetail", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                // カテゴリ
+                Text(text = "📝 メ  モ: $displayDetail", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 val displayCategory = if (!schedule.category.isNullOrBlank()) schedule.category else "なし"
                 Text(text = "🏷️ カテゴリ: $displayCategory", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(
-                        onClick = { onEditItem(schedule) },
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-                    ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { onEditItem(schedule) }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)) {
                         Text("編集する", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 }
@@ -590,31 +555,25 @@ private fun ScheduleItemRow(
     }
 }
 
+// 💡 onDeleteSavedItem の引数を追加
 private fun LazyListScope.scheduleMainList(
     groupedUncompleted: Map<String, List<Schedule>>,
     completedSchedules: List<Schedule>,
     viewModel: HomeViewModel,
-    onEditSavedItem: (Schedule) -> Unit
+    onEditSavedItem: (Schedule) -> Unit,
+    onDeleteSavedItem: (Schedule) -> Unit // 💡 追加
 ) {
     groupedUncompleted.forEach { (date, schedules) ->
-        item {
-            Text(text = "$date の予定", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
-        }
-
+        item { Text(text = "$date の予定", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) }
         items(schedules) { schedule ->
-            ScheduleItemRow(schedule = schedule, onEditItem = { onEditSavedItem(schedule) }, viewModel = viewModel)
+            ScheduleItemRow(schedule = schedule, onEditItem = { onEditSavedItem(schedule) }, onDeleteItem = { onDeleteSavedItem(schedule) }, viewModel = viewModel)
         }
     }
 
     if (completedSchedules.isNotEmpty()) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(text = "完了した予定", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp)
-
                 Button(
                     onClick = { viewModel.deleteCompletedSchedules() },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD72323)),
@@ -630,34 +589,19 @@ private fun LazyListScope.scheduleMainList(
                 }
             }
         }
-
         items(completedSchedules) { schedule ->
-            ScheduleItemRow(schedule = schedule, onEditItem = { onEditSavedItem(schedule) }, viewModel = viewModel)
+            ScheduleItemRow(schedule = schedule, onEditItem = { onEditSavedItem(schedule) }, onDeleteItem = { onDeleteSavedItem(schedule) }, viewModel = viewModel)
         }
     }
 }
 
 @Composable
-fun ViewToggleButton(
-    currentMode: Int,
-    onModeChange: (Int) -> Unit
-) {
+fun ViewToggleButton(currentMode: Int, onModeChange: (Int) -> Unit) {
     BottomAppBar(containerColor = MaterialTheme.colorScheme.surface) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Button(onClick = { onModeChange(0) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(0.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = if (currentMode == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (currentMode == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
-            ) { Text("リスト", fontSize = 14.sp) }
-
-            Button(onClick = { onModeChange(1) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(0.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = if (currentMode == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (currentMode == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
-            ) { Text("カレンダー", fontSize = 14.sp) }
-
-            Button(onClick = { onModeChange(2) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(0.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = if (currentMode == 2) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (currentMode == 2) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
-            ) { Text("タイムライン", fontSize = 14.sp) }
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Button(onClick = { onModeChange(0) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = if (currentMode == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (currentMode == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)) { Text("リスト", fontSize = 14.sp) }
+            Button(onClick = { onModeChange(1) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = if (currentMode == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (currentMode == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)) { Text("カレンダー", fontSize = 14.sp) }
+            Button(onClick = { onModeChange(2) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = if (currentMode == 2) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (currentMode == 2) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)) { Text("タイムライン", fontSize = 14.sp) }
         }
     }
 }
