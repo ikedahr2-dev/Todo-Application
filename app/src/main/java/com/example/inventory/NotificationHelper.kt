@@ -46,6 +46,22 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
+    // 💡【追加機能】開始通知の「開始」ボタン用インテント
+    // レシーバー側で判定できるよう、アクションを ACTION_START_TASK に設定し、
+    // 「完了」ボタンと同じく TODO_PENDING_ID キーで通知IDを乗せます。
+    val startIntent = Intent(context, TodoAlarmReceiver::class.java).apply {
+        action = "com.example.inventory.ACTION_START_TASK"
+        putExtra("TODO_PENDING_ID", notificationId)
+    }
+
+    // 他のPendingIntentと衝突しないように、独自の識別下駄（+ 400000）を割り当てます
+    val startPendingIntent = PendingIntent.getBroadcast(
+        context,
+        notificationId + 400000,
+        startIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
     val builder = NotificationCompat.Builder(context, "todo_notifications")
         .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
         .setContentTitle(title)
@@ -54,6 +70,12 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         .setDefaults(NotificationCompat.DEFAULT_ALL)
         .setContentIntent(activityPendingIntent)
         .setAutoCancel(true)
+        // 💡「開始」ボタンを追加配置します（「完了」の左側に並びます）
+        .addAction(
+            android.R.drawable.ic_media_play,
+            "開始",
+            startPendingIntent
+        )
         .addAction(
             android.R.drawable.ic_secure,
             "完了",

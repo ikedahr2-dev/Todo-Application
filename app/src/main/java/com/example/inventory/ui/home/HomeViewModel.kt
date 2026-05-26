@@ -120,14 +120,11 @@ class HomeViewModel(
         _uiState.update { it.copy(showInputBox = false) }
     }
 
-    // 💡 修正: 新規追加処理
     fun addText(text: String, date: String, time: String, endTime: String, category: String, detail: String, reminderMinutes: Int, endReminderMinutes: Int) {
         viewModelScope.launch {
             val targetEndTime = endTime.ifBlank { time }
             val taskTimeMillis = convertDateTimeToMillis(date, targetEndTime) ?: System.currentTimeMillis()
 
-            // 💡 画面から渡ってきた選択分数（デフォルト5分）を確実に適用
-            // 万が一ここが不正な値（9999など）で入ってきた場合の防衛策として、初期作成時は強制的に5分前をセットします
             val finalReminderMinutes = if (reminderMinutes == 9999) 5 else reminderMinutes
 
             val newSchedule = Schedule(
@@ -138,7 +135,7 @@ class HomeViewModel(
                 category = category,
                 detail = detail,
                 data = taskTimeMillis,
-                reminderMinutes = finalReminderMinutes // 💡 5分前（または選択値）を確実に保存
+                reminderMinutes = finalReminderMinutes
             )
             schedulesRepository.insertSchedule(newSchedule)
 
@@ -146,18 +143,54 @@ class HomeViewModel(
             val savedItem = savedList.find { it.text == text && it.date == date && it.time == time }
 
             if (savedItem != null) {
-                // 1. 開始アラーム（5分前など）の予約
                 val alarmTimeMillis = convertDateTimeToMillis(date, time)
                 if (alarmTimeMillis != null && alarmTimeMillis > System.currentTimeMillis()) {
                     scheduleTodoAlarm(context = application.applicationContext, taskId = savedItem.id, taskTitle = text, taskTimeMillis = alarmTimeMillis, reminderMinutes = finalReminderMinutes)
                 }
 
-                // 2. 終了アラーム（時間ぴったり固定）の予約
                 if (endTime.isNotBlank()) {
                     val endAlarmTimeMillis = convertDateTimeToMillis(date, endTime)
                     if (endAlarmTimeMillis != null && endAlarmTimeMillis > System.currentTimeMillis()) {
                         scheduleTodoEndAlarm(context = application.applicationContext, taskId = savedItem.id, taskTitle = text, endTimeMillis = endAlarmTimeMillis)
                     }
+                }
+            }
+
+            onDismissInputBox()
+            refreshOngoingNotification()
+        }
+    }
+
+    fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String, newEndTime: String, newCategory: String, newDetail: String, newReminderMinutes: Int, newEndReminderMinutes: Int) {
+        viewModelScope.launch {
+            val targetEndTime = newEndTime.ifBlank { newTime }
+            val taskTimeMillis = convertDateTimeToMillis(newDate, targetEndTime) ?: System.currentTimeMillis()
+
+            val finalReminderMinutes = if (newReminderMinutes == 9999) 5 else newReminderMinutes
+
+            val updatedSchedule = schedule.copy(
+                text = newText,
+                date = newDate,
+                time = newTime,
+                endTime = newEndTime,
+                category = newCategory,
+                detail = newDetail,
+                data = taskTimeMillis,
+                reminderMinutes = finalReminderMinutes
+            )
+            schedulesRepository.updateSchedule(updatedSchedule)
+
+            cancelTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, reminderMinutes = schedule.reminderMinutes)
+
+            val alarmTimeMillis = convertDateTimeToMillis(newDate, newTime)
+            if (alarmTimeMillis != null && alarmTimeMillis > System.currentTimeMillis()) {
+                scheduleTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = newText, taskTimeMillis = alarmTimeMillis, reminderMinutes = finalReminderMinutes)
+            }
+
+            if (newEndTime.isNotBlank()) {
+                val endAlarmTimeMillis = convertDateTimeToMillis(newDate, newEndTime)
+                if (endAlarmTimeMillis != null && endAlarmTimeMillis > System.currentTimeMillis()) {
+                    scheduleTodoEndAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = newText, endTimeMillis = endAlarmTimeMillis)
                 }
             }
 
@@ -173,49 +206,6 @@ class HomeViewModel(
         }
     }
 
-    // 💡 修正: 編集更新処理
-    fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String, newEndTime: String, newCategory: String, newDetail: String, newReminderMinutes: Int, newEndReminderMinutes: Int) {
-        viewModelScope.launch {
-            val targetEndTime = newEndTime.ifBlank { newTime }
-            val taskTimeMillis = convertDateTimeToMillis(newDate, targetEndTime) ?: System.currentTimeMillis()
-
-            // 💡 編集更新時も、画面の入力値（9999以外）を正しくマッピング
-            val finalReminderMinutes = if (newReminderMinutes == 9999) 5 else newReminderMinutes
-
-            val updatedSchedule = schedule.copy(
-                text = newText,
-                date = newDate,
-                time = newTime,
-                endTime = newEndTime,
-                category = newCategory,
-                detail = newDetail,
-                data = taskTimeMillis,
-                reminderMinutes = finalReminderMinutes
-            )
-            schedulesRepository.updateSchedule(updatedSchedule)
-
-            // 古いアラームをキャンセル
-            cancelTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, reminderMinutes = schedule.reminderMinutes)
-
-            // 1. 新しい開始前通知アラームの予約
-            val alarmTimeMillis = convertDateTimeToMillis(newDate, newTime)
-            if (alarmTimeMillis != null && alarmTimeMillis > System.currentTimeMillis()) {
-                scheduleTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = newText, taskTimeMillis = alarmTimeMillis, reminderMinutes = finalReminderMinutes)
-            }
-
-            // 2. 新しい終了アラーム（時間ぴったり固定）の予約
-            if (newEndTime.isNotBlank()) {
-                val endAlarmTimeMillis = convertDateTimeToMillis(newDate, newEndTime)
-                if (endAlarmTimeMillis != null && endAlarmTimeMillis > System.currentTimeMillis()) {
-                    scheduleTodoEndAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = newText, endTimeMillis = endAlarmTimeMillis)
-                }
-            }
-
-            onDismissInputBox()
-            refreshOngoingNotification()
-        }
-    }
-
     fun deleteItem(schedule: Schedule) {
         viewModelScope.launch {
             schedulesRepository.deleteSchedule(schedule)
@@ -225,10 +215,15 @@ class HomeViewModel(
         }
     }
 
+    // 💡 修正：開始と終了の両方が完了（true）した予定を一括削除する機能
     fun deleteCompletedSchedules() {
         viewModelScope.launch {
-            val completedList = uiState.value.scheduleList.filter { it.isCompleted }
-            completedList.forEach { schedule ->
+            // 画面上のリスト（uiState.value.scheduleList）ではなく、
+            // データベースのストリームから直接「両方チェックがついたもの」を正確に抽出してすべて物理削除します
+            val allSchedules = schedulesRepository.getAllSchedulesStream().first()
+            val fullyCompletedList = allSchedules.filter { it.isCompleted && it.isEndCompleted }
+
+            fullyCompletedList.forEach { schedule ->
                 schedulesRepository.deleteSchedule(schedule)
                 cancelTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, reminderMinutes = schedule.reminderMinutes)
             }
@@ -236,6 +231,7 @@ class HomeViewModel(
         }
     }
 
+    // 開始チェックボックス（1つ目）用
     fun toggleScheduleStatus(schedule: Schedule, isChecked: Boolean) {
         viewModelScope.launch {
             val updatedSchedule = schedule.copy(isCompleted = isChecked)
@@ -246,7 +242,6 @@ class HomeViewModel(
             if (isChecked) {
                 cancelTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, reminderMinutes = schedule.reminderMinutes)
             } else {
-                // 💡 チェックを外して未完了に戻した時、古い保留用フラグ(9999)だった場合はデフォルトの5分前に安全復帰させます
                 val fallbackReminderMinutes = if (schedule.reminderMinutes == 9999) 5 else schedule.reminderMinutes
 
                 val alarmTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
@@ -262,6 +257,18 @@ class HomeViewModel(
                     }
                 }
             }
+            refreshOngoingNotification()
+        }
+    }
+
+    // 💡 修正：終了チェックボックス（2つ目）専用の更新関数
+    // 画面から渡される現在のチェック状態（isChecked）を確実にデータベースに反映させます
+    fun toggleScheduleEndStatus(schedule: Schedule, isChecked: Boolean) {
+        viewModelScope.launch {
+            val updatedSchedule = schedule.copy(isEndCompleted = isChecked)
+            schedulesRepository.updateSchedule(updatedSchedule)
+
+            kotlinx.coroutines.delay(150)
             refreshOngoingNotification()
         }
     }

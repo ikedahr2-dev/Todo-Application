@@ -96,6 +96,7 @@ fun ScheduleInputDialog(
                     if (isFormValid) {
                         // 💡 保存される時も、もし9999なら5分に強制安全変換してViewModelに渡します
                         val finalMinutes = if (selectedReminderMinutes == 9999) 5 else selectedReminderMinutes
+                        // 末尾のパラメーター（0）は endReminderMinutes として引き渡されます
                         onSave(text, selectedDate, selectedTime, selectedEndTime, selectedCategory, detail, finalMinutes, 0)
                         onDismiss()
                     } else {

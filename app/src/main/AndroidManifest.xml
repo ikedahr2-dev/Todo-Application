@@ -26,6 +26,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="com.example.inventory.ACTION_COMPLETE_TASK" />
+                <action android:name="com.example.inventory.ACTION_START_TASK" />
             </intent-filter>
         </receiver>
 

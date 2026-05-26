@@ -54,6 +54,51 @@ class TodoAlarmReceiver : BroadcastReceiver() {
         val endTaskId = intent.getIntExtra("TODO_END_ID", -1)
         val endPendingTaskId = intent.getIntExtra("TODO_END_PENDING_ID", -1)
 
+        // 💡 追加：通知の「開始」ボタンが押されたときのバックグラウンド処理（開始時間ぴったりにチェックを入れる）
+        if (action == "com.example.inventory.ACTION_START_TASK") {
+            val actualTaskId = when {
+                taskId != -1 -> taskId
+                pendingTaskId != -1 -> pendingTaskId
+                endTaskId != -1 -> endTaskId - 100000
+                endPendingTaskId != -1 -> endPendingTaskId - 100000
+                else -> -1
+            }
+
+            if (actualTaskId != -1) {
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val database = InventoryDatabase.getDatabase(context)
+                        val dao = database.scheduleDao()
+
+                        val allItems = dao.getAllSchedule().first()
+                        val currentSchedule = allItems.find { it.id == actualTaskId }
+
+                        if (currentSchedule != null) {
+                            // 開始時間ぴったりとして、開始チェックボックス（isCompleted）をtrue（完了）にする
+                            val updated = currentSchedule.copy(isCompleted = true)
+                            dao.update(updated)
+
+                            val currentTime = System.currentTimeMillis()
+                            val overdueTasks = dao.getOverdueIncompleteTasks(currentTime)
+
+                            updateOngoingTaskCountNotification(
+                                context = context,
+                                overdueTasks = overdueTasks
+                            )
+
+                            // バナー通知の消去（開始ボタンを押したため、そのバナーを消す）
+                            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                            notificationManager.cancel(actualTaskId)
+                            notificationManager.cancel(actualTaskId + 200000) // pending通知用など
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                return
+            }
+        }
+
         // 通知の「完了」ボタンが押されたときのバックグラウンド処理
         if (action == "com.example.inventory.ACTION_COMPLETE_TASK") {
 

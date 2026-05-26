@@ -19,6 +19,9 @@ data class Schedule(
     // デフォルトは未完了（false）にしてる
     val isCompleted: Boolean = false,
 
-    // 💡 追加：何分前に通知するか（デフォルトは5分前。通知なしの場合は -1 を想定）
-    val reminderMinutes: Int = 5
+    // 何分前に通知するか（デフォルトは5分前。通知なしの場合は -1 を想定）
+    val reminderMinutes: Int = 5,
+
+    // 終了チェックボックス専用のフラグを追加（既存の機能を壊さず、後ろに追記しました）
+    val isEndCompleted: Boolean = false
 )
