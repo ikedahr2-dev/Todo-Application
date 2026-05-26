@@ -3,7 +3,6 @@ package com.example.inventory.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,11 +44,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.R
 import com.example.inventory.convertDateTimeToMillis
 import com.example.inventory.data.Schedule
+import com.example.inventory.sendTodoNotification
+import com.example.inventory.sendTodoEndNotification // 💡 追加
 import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.md_theme_light_primary
 import com.example.inventory.ui.theme.md_theme_dark_time
 import com.example.inventory.ui.theme.md_theme_light_time
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -59,7 +61,7 @@ object HomeDestination : NavigationDestination {
     override val titleRes = R.string.app_name
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     navigateToItemEntry: () -> Unit,
@@ -69,6 +71,15 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    // 5秒ごとに現在時刻を再取得し、時間ジャストでのUI更新を自動で走らせるタイマー
+    var currentTimeMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000 * 5)
+            currentTimeMillis = System.currentTimeMillis()
+        }
+    }
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -88,11 +99,8 @@ fun HomeScreen(
     var newCategoryText by remember { mutableStateOf("") }
     var categoryToDelete by remember { mutableStateOf<String?>(null) }
 
-    // 長押しで削除しようとしているタスクを保持する変数
     var scheduleToDelete by remember { mutableStateOf<Schedule?>(null) }
-
-    // 💡 追加：完了した予定セクションが開いているかどうかを管理する状態（初期値は折りたたみ）
-    var isCompletedSectionExpanded by rememberSaveable { mutableStateOf(false) }
+    var schedulePendingCheck by remember { mutableStateOf<Pair<Schedule, Boolean>?>(null) }
 
     val selectedCategoryTab = if (selectedFilterCategory.isBlank()) "すべて" else selectedFilterCategory
 
@@ -288,23 +296,24 @@ fun HomeScreen(
                                     )
                                 }
                             } else {
-                                // 💡 引数に開閉状態（isCompletedSectionExpanded）とその変更処理を追加
                                 scheduleMainList(
                                     groupedUncompleted = groupedUncompleted,
                                     completedSchedules = completedSchedules,
                                     viewModel = viewModel,
-                                    isCompletedSectionExpanded = isCompletedSectionExpanded,
-                                    onToggleCompletedSection = { isCompletedSectionExpanded = !isCompletedSectionExpanded },
+                                    currentTimeMillis = currentTimeMillis,
                                     onEditSavedItem = { schedule ->
                                         selectedDate = schedule.date
                                         selectedTime = schedule.time
                                         selectedEndTime = schedule.endTime ?: ""
                                         viewModel.onEditSavedItem(schedule)
                                     },
-                                    onDeleteSavedItem = { schedule -> scheduleToDelete = schedule }
+                                    onDeleteSavedItem = { schedule -> scheduleToDelete = schedule },
+                                    onRequireCheckConfirmation = { schedule, isChecked ->
+                                        schedulePendingCheck = Pair(schedule, isChecked)
+                                    }
                                 )
-                                //完了した予定の下の余白調整
-                                item { Spacer(modifier = Modifier.height(20.dp)) }
+
+                                item { Spacer(modifier = Modifier.height(100.dp)) }
                             }
                         }
                     }
@@ -317,12 +326,13 @@ fun HomeScreen(
                     initialDetail = uiState.editingItem?.detail ?: "",
                     initialReminderMinutes = uiState.editingItem?.reminderMinutes ?: 5,
                     onDismiss = { viewModel.onDismissInputBox() },
-                    onSave = { text, date, time, endTime, category, detail, reminderMinutes ->
+                    // 💡 解決: パラメーター数を 8 つ(endReminderMinutes含む)に変更し ViewModel の最新引数とマッピング
+                    onSave = { text, date, time, endTime, category, detail, reminderMinutes, endReminderMinutes ->
                         val item = uiState.editingItem
                         if (item != null) {
-                            viewModel.updateItem(item, text, date, time, endTime, category, detail, reminderMinutes)
+                            viewModel.updateItem(item, text, date, time, endTime, category, detail, reminderMinutes, endReminderMinutes)
                         } else {
-                            viewModel.addText(text, date, time, endTime, category, detail, reminderMinutes)
+                            viewModel.addText(text, date, time, endTime, category, detail, reminderMinutes, endReminderMinutes)
                         }
                         viewModel.onDismissInputBox()
                     },
@@ -386,7 +396,25 @@ fun HomeScreen(
         }
     }
 
-    // タスク削除の確認ダイアログ
+    schedulePendingCheck?.let { (schedule, isChecked) ->
+        AlertDialog(
+            onDismissRequest = { schedulePendingCheck = null },
+            title = { Text("予定開始前の完了確認") },
+            text = { Text("「${schedule.text}」は開始時間前ですが、完了にしてもよろしいですか？") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.toggleScheduleStatus(schedule, isChecked)
+                        schedulePendingCheck = null
+                    }
+                ) { Text("はい") }
+            },
+            dismissButton = {
+                TextButton(onClick = { schedulePendingCheck = null }) { Text("キャンセル") }
+            }
+        )
+    }
+
     scheduleToDelete?.let { schedule ->
         AlertDialog(
             onDismissRequest = { scheduleToDelete = null },
@@ -442,14 +470,18 @@ fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ScheduleItemRow(
     schedule: Schedule,
+    currentTime: Long,
     onEditItem: (Schedule) -> Unit,
     onDeleteItem: (Schedule) -> Unit,
+    onRequireCheckConfirmation: (Schedule, Boolean) -> Unit,
     viewModel: HomeViewModel
 ) {
+    // 💡 解決: LaunchedEffect より手前、関数の先頭で context を宣言することで参照エラーを根本解決
+    val context = LocalContext.current
     var expanded by rememberSaveable { mutableStateOf(false) }
 
     val arrowRotationDegree by animateFloatAsState(
@@ -457,9 +489,46 @@ private fun ScheduleItemRow(
         label = "ArrowAnimation"
     )
 
-    val currentTime = System.currentTimeMillis()
-    val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.endTime)
-    val isOverdue = taskTimeMillis != null && taskTimeMillis < currentTime && !schedule.isCompleted
+    val startTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
+    val taskEndTimeMillis = convertDateTimeToMillis(schedule.date, schedule.endTime)
+
+    val allowedEndTimeMillis = taskEndTimeMillis?.let { it + 60 * 1000 }
+
+    val isJustOnTime = taskEndTimeMillis != null && allowedEndTimeMillis != null &&
+            currentTime >= taskEndTimeMillis && currentTime <= allowedEndTimeMillis
+
+    val fiveMinutesMillis = 5 * 60 * 1000
+    val isWithinFiveMinutesBeforeStart = startTimeMillis != null &&
+            currentTime < startTimeMillis &&
+            currentTime >= (startTimeMillis - fiveMinutesMillis)
+
+    val isTooEarlyForManualCheck = startTimeMillis != null && currentTime < startTimeMillis && !isWithinFiveMinutesBeforeStart
+
+    val isOverdue = taskEndTimeMillis != null && taskEndTimeMillis < currentTime && !schedule.isCompleted
+
+    val isPastEndTime = taskEndTimeMillis != null && currentTime >= taskEndTimeMillis
+    val isPastStartTime = startTimeMillis != null && currentTime >= startTimeMillis
+
+    val isNotificationPendingCompleted = schedule.reminderMinutes == 9999 && isPastStartTime
+    val isVisualCompleted = schedule.isCompleted || isNotificationPendingCompleted
+
+    // 💡 終了時間での画面自動完了時、ピョコッと開始と同じ高優先度のプッシュ通知を表示
+    LaunchedEffect(isPastEndTime, isNotificationPendingCompleted) {
+        if ((isPastEndTime || isNotificationPendingCompleted) && !schedule.isCompleted) {
+            viewModel.toggleScheduleStatus(schedule, true)
+
+            if (isPastEndTime) {
+                sendTodoEndNotification(
+                    context = context,
+                    notificationId = schedule.id + 100000,
+                    title = "【終了時間】タスクの時間です",
+                    content = schedule.text
+                )
+            }
+        }
+    }
+
+    val shouldShowStrikeThrough = isPastEndTime
 
     val isDark = isSystemInDarkTheme()
     val borderColor = if (isOverdue) Color(0xFF94403E) else md_theme_light_primary
@@ -501,9 +570,39 @@ private fun ScheduleItemRow(
             modifier = Modifier.fillMaxWidth()
         ) {
             Checkbox(
-                checked = schedule.isCompleted,
-                onCheckedChange = { isChecked -> viewModel.toggleScheduleStatus(schedule, isChecked) },
-                modifier = Modifier.padding(end = 8.dp)
+                checked = isVisualCompleted,
+                onCheckedChange = { isChecked ->
+                    if (isChecked && isTooEarlyForManualCheck && !schedule.isCompleted) {
+                        onRequireCheckConfirmation(schedule, isChecked)
+                    } else {
+                        viewModel.toggleScheduleStatus(schedule, isChecked)
+                    }
+                },
+                modifier = Modifier.padding(end = 4.dp),
+                colors = if (isVisualCompleted && isJustOnTime) {
+                    CheckboxDefaults.colors(
+                        checkedColor = Color(0xFFD72323),
+                        checkmarkColor = Color.White
+                    )
+                } else {
+                    CheckboxDefaults.colors()
+                }
+            )
+
+            Checkbox(
+                checked = isPastEndTime,
+                onCheckedChange = { isChecked ->
+                    if (isChecked && isTooEarlyForManualCheck && !schedule.isCompleted) {
+                        onRequireCheckConfirmation(schedule, isChecked)
+                    } else {
+                        viewModel.toggleScheduleStatus(schedule, isChecked)
+                    }
+                },
+                modifier = Modifier.padding(end = 8.dp).size(28.dp),
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.secondary,
+                    checkmarkColor = Color.White
+                )
             )
 
             Text(
@@ -513,7 +612,13 @@ private fun ScheduleItemRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
-                style = androidx.compose.ui.text.TextStyle(textDecoration = if (schedule.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else androidx.compose.ui.text.style.TextDecoration.None)
+                style = androidx.compose.ui.text.TextStyle(
+                    textDecoration = if (shouldShowStrikeThrough) {
+                        androidx.compose.ui.text.style.TextDecoration.LineThrough
+                    } else {
+                        androidx.compose.ui.text.style.TextDecoration.None
+                    }
+                )
             )
 
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
@@ -537,6 +642,7 @@ private fun ScheduleItemRow(
                 val reminderText = when (schedule.reminderMinutes) {
                     -1 -> "通知なし"
                     0 -> "時間ピッタリ"
+                    9999 -> "通知で完了済み（開始待機）"
                     else -> "${schedule.reminderMinutes}分前"
                 }
                 Text(text = "🔔 通  知: $reminderText", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -558,83 +664,44 @@ private fun ScheduleItemRow(
     }
 }
 
-// 💡 修正：開閉状態（isCompletedSectionExpanded）を受け取るように引数を拡張
 private fun LazyListScope.scheduleMainList(
     groupedUncompleted: Map<String, List<Schedule>>,
     completedSchedules: List<Schedule>,
     viewModel: HomeViewModel,
-    isCompletedSectionExpanded: Boolean,         // ★追加：状態を受け取る
-    onToggleCompletedSection: () -> Unit,       // ★追加：タップ時の開閉切り替え処理
+    currentTimeMillis: Long,
     onEditSavedItem: (Schedule) -> Unit,
-    onDeleteSavedItem: (Schedule) -> Unit
+    onDeleteSavedItem: (Schedule) -> Unit,
+    onRequireCheckConfirmation: (Schedule, Boolean) -> Unit
 ) {
     groupedUncompleted.forEach { (date, schedules) ->
         item { Text(text = "$date の予定", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) }
         items(schedules) { schedule ->
-            ScheduleItemRow(schedule = schedule, onEditItem = { onEditSavedItem(schedule) }, onDeleteItem = { onDeleteSavedItem(schedule) }, viewModel = viewModel)
+            ScheduleItemRow(
+                schedule = schedule,
+                currentTime = currentTimeMillis,
+                onEditItem = { onEditSavedItem(schedule) },
+                onDeleteItem = { onDeleteSavedItem(schedule) },
+                onRequireCheckConfirmation = onRequireCheckConfirmation,
+                viewModel = viewModel
+            )
         }
     }
 
     if (completedSchedules.isNotEmpty()) {
         item {
-            // 💡 開閉状態（矢印）のアニメーションをセット
-            val arrowRotationDegree by animateFloatAsState(
-                targetValue = if (isCompletedSectionExpanded) 180f else 0f,
-                label = "CompletedSectionArrowAnimation"
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 24.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 💡 修正：「完了した予定（件数）」の部分を丸ごとクリックして開閉できるように変更
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clickable { onToggleCompletedSection() }
-                        .padding(vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "完了した予定 (${completedSchedules.size})",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 16.sp
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    // 開閉状態に合わせて向きがくるっと回る矢印アイコンを追加
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .size(22.dp)
-                            .rotate(arrowRotationDegree)
-                    )
-                }
-
-                Button(
-                    onClick = { viewModel.deleteCompletedSchedules() },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD72323)),
-                    shape = RoundedCornerShape(4.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("完了した予定を一括削除", fontSize = 12.sp, color = Color.White)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.onError, modifier = Modifier.size(14.dp))
-                    }
-                }
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "完了した予定", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp)
             }
         }
-
-        // 💡 修正：開いているとき（true）だけ、完了したタスクのリストを展開する処理
-        if (isCompletedSectionExpanded) {
-            items(completedSchedules) { schedule ->
-                ScheduleItemRow(schedule = schedule, onEditItem = { onEditSavedItem(schedule) }, onDeleteItem = { onDeleteSavedItem(schedule) }, viewModel = viewModel)
-            }
+        items(completedSchedules) { schedule ->
+            ScheduleItemRow(
+                schedule = schedule,
+                currentTime = currentTimeMillis,
+                onEditItem = { onEditSavedItem(schedule) },
+                onDeleteItem = { onDeleteSavedItem(schedule) },
+                onRequireCheckConfirmation = onRequireCheckConfirmation,
+                viewModel = viewModel
+            )
         }
     }
 }

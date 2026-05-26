@@ -13,7 +13,7 @@ import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-// 1. 通知を表示する関数
+// 1. 通知を表示する関数（開始時間・分数前用）
 fun sendTodoNotification(context: Context, notificationId: Int, title: String, content: String) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -33,14 +33,15 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
+    // 開始通知の「完了」ボタン用インテント
     val completeIntent = Intent(context, TodoAlarmReceiver::class.java).apply {
         action = "com.example.inventory.ACTION_COMPLETE_TASK"
-        putExtra("TODO_ID", notificationId)
+        putExtra("TODO_PENDING_ID", notificationId)
     }
 
     val completePendingIntent = PendingIntent.getBroadcast(
         context,
-        notificationId,
+        notificationId + 200000,
         completeIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
@@ -66,7 +67,63 @@ fun sendTodoNotification(context: Context, notificationId: Int, title: String, c
     }
 }
 
-// 2. アラームを予約する関数（💡 reminderMinutes を追加）
+// 2. 💡【アップデート】終了通知の関数にも「完了」ボタンを追加流用！
+fun sendTodoEndNotification(context: Context, notificationId: Int, title: String, content: String) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
+        != PackageManager.PERMISSION_GRANTED
+    ) {
+        return
+    }
+
+    val activityIntent = Intent(context, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    }
+
+    val activityPendingIntent = PendingIntent.getActivity(
+        context,
+        notificationId,
+        activityIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    // 💡 終了通知の「完了」ボタンが押されたことを判定するためのインテント
+    // 開始用と区別するために、新しくキー "TODO_END_PENDING_ID" をセットします
+    val completeIntent = Intent(context, TodoAlarmReceiver::class.java).apply {
+        action = "com.example.inventory.ACTION_COMPLETE_TASK"
+        putExtra("TODO_END_PENDING_ID", notificationId)
+    }
+
+    // 💡 他のアラームオブジェクトとバッティングしないよう、独自の識別下駄（+ 300000）を割り当てます
+    val completePendingIntent = PendingIntent.getBroadcast(
+        context,
+        notificationId + 300000,
+        completeIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    val builder = NotificationCompat.Builder(context, "todo_notifications")
+        .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+        .setContentTitle(title)
+        .setContentText(content)
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .setDefaults(NotificationCompat.DEFAULT_ALL)
+        .setContentIntent(activityPendingIntent)
+        .setAutoCancel(true)
+        .addAction(
+            android.R.drawable.ic_secure,
+            "完了", // 💡 開始通知と同じ「完了」ボタンを配置！
+            completePendingIntent
+        )
+
+    try {
+        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+    } catch (e: SecurityException) {
+        e.printStackTrace()
+    }
+}
+
+// 3. アラームを予約する関数（開始時間用）
 fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTimeMillis: Long, reminderMinutes: Int) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
@@ -78,10 +135,8 @@ fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTime
         }
     }
 
-    // 💡 通知なし(-1)の場合はアラームをセットせずに終了する
     if (reminderMinutes < 0) return
 
-    // 💡 0分なら「時間です」、それ以外なら「XX分前」と表示を切り替える
     val displayTitle = if (reminderMinutes == 0) "タスクの時間です" else "【${reminderMinutes}分前】タスクの時間です"
 
     val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
@@ -97,19 +152,53 @@ fun scheduleTodoAlarm(context: Context, taskId: Int, taskTitle: String, taskTime
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    // 💡 設定された分数（reminderMinutes）を引き算する
     val alarmTimeMillis = taskTimeMillis - (reminderMinutes * 60 * 1000L)
 
     if (alarmTimeMillis > System.currentTimeMillis()) {
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            alarmTimeMillis,
-            pendingIntent
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTimeMillis, pendingIntent)
+        } else {
+            alarmManager.setExact(AlarmManager.RTC_WAKEUP, alarmTimeMillis, pendingIntent)
+        }
     }
 }
 
-// 3. 日時を変換する関数
+// 4. 終了時間ぴったりに通知を送るためのアラーム予約関数
+fun scheduleTodoEndAlarm(context: Context, taskId: Int, taskTitle: String, endTimeMillis: Long) {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (!alarmManager.canScheduleExactAlarms()) {
+            return
+        }
+    }
+
+    val displayTitle = "【終了時間】タスクの時間です"
+
+    val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
+        putExtra("TODO_TITLE", displayTitle)
+        putExtra("TODO_CONTENT", taskTitle)
+        putExtra("TODO_END_ID", taskId + 100000)
+    }
+
+    val pendingIntent = PendingIntent.getBroadcast(
+        context,
+        taskId + 100000,
+        intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    if (endTimeMillis >= System.currentTimeMillis() - 60000) {
+        val triggerTime = maxOf(endTimeMillis, System.currentTimeMillis() + 1000)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+        } else {
+            alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+        }
+    }
+}
+
+// 5. 日時を変換する関数
 fun convertDateTimeToMillis(dateString: String, timeString: String): Long? {
     return try {
         val dateTimeString = "$dateString $timeString"
@@ -123,11 +212,10 @@ fun convertDateTimeToMillis(dateString: String, timeString: String): Long? {
     }
 }
 
-// 4. アラームをキャンセルする関数（💡 reminderMinutes を追加）
+// 6. アラームをキャンセルする関数
 fun cancelTodoAlarm(context: Context, taskId: Int, taskTitle: String, reminderMinutes: Int) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-    // 💡 予約時と同じタイトルを生成してキャンセルする
     val displayTitle = if (reminderMinutes == 0) "タスクの時間です" else "【${reminderMinutes}分前】タスクの時間です"
 
     val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
@@ -145,6 +233,22 @@ fun cancelTodoAlarm(context: Context, taskId: Int, taskTitle: String, reminderMi
 
     alarmManager.cancel(pendingIntent)
     pendingIntent.cancel()
+
+    val endIntent = Intent(context, TodoAlarmReceiver::class.java).apply {
+        putExtra("TODO_TITLE", "【終了時間】タスクの時間です")
+        putExtra("TODO_CONTENT", taskTitle)
+        putExtra("TODO_END_ID", taskId + 100000)
+    }
+
+    val endPendingIntent = PendingIntent.getBroadcast(
+        context,
+        taskId + 100000,
+        endIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    alarmManager.cancel(endPendingIntent)
+    endPendingIntent.cancel()
 }
 
 // 常駐通知の関数

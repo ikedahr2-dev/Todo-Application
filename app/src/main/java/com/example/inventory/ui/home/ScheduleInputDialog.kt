@@ -30,8 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 @Composable
 fun ScheduleInputDialog(
     onDismiss: () -> Unit,
-    // 💡 7つ目の引数（Int）として「何分前に通知するか（reminderMinutes）」を追加
-    onSave: (String, String, String, String, String, String, Int) -> Unit,
+    onSave: (String, String, String, String, String, String, Int, Int) -> Unit,
     onDelete: (() -> Unit)? = null,
     onSelectDate: () -> Unit,
     onSelectTime: () -> Unit,
@@ -44,7 +43,7 @@ fun ScheduleInputDialog(
     categories: List<String>,
     initialText: String = "",
     initialDetail: String = "",
-    // 💡 編集時のために、初期の通知分数を親から受け取る（デフォルトは5分）
+    // 開始通知用の初期分数（デフォルトは5分）
     initialReminderMinutes: Int = 5
 ) {
 
@@ -52,8 +51,9 @@ fun ScheduleInputDialog(
     var text by remember(initialText) { mutableStateOf(initialText) }
     var detail by remember(initialDetail) { mutableStateOf(initialDetail) }
 
-    // 💡 通知時間を管理する状態（デフォルトは親から受け取った値）
-    var selectedReminderMinutes by remember(initialReminderMinutes) { mutableStateOf(initialReminderMinutes) }
+    // 💡 修正：もし保存されたデータや引数に「9999」が入ってきてしまっても、画面上は強制的に「5分前」として扱う防衛策
+    val safeInitialMinutes = if (initialReminderMinutes == 9999 || initialReminderMinutes < -1) 5 else initialReminderMinutes
+    var selectedReminderMinutes by remember(safeInitialMinutes) { mutableStateOf(safeInitialMinutes) }
 
     // エラーメッセージの表示状態を管理するフラグ
     var showError by remember { mutableStateOf(false) }
@@ -94,37 +94,27 @@ fun ScheduleInputDialog(
             Button(
                 onClick = {
                     if (isFormValid) {
-                        // 💡 選択された通知分数（selectedReminderMinutes）も一緒に引き渡す
-                        onSave(text, selectedDate, selectedTime, selectedEndTime, selectedCategory, detail, selectedReminderMinutes)
+                        // 💡 保存される時も、もし9999なら5分に強制安全変換してViewModelに渡します
+                        val finalMinutes = if (selectedReminderMinutes == 9999) 5 else selectedReminderMinutes
+                        onSave(text, selectedDate, selectedTime, selectedEndTime, selectedCategory, detail, finalMinutes, 0)
                         onDismiss()
                     } else {
-                        // 未入力や時間逆転がある場合はエラーを表示
                         showError = true
                     }
                 }
             ) { Text(stringResource(R.string.enter)) }
         },
-        // 左下の「削除」および「キャンセル」ボタン
+        // 左下のキャンセルボタン
         dismissButton = {
             Row {
-                // 既存の予定を編集しているとき（onDeleteがヌルでないとき）だけ削除ボタンを出現させる
-                /*if (onDelete != null) {
-                    TextButton(
-                        onClick = {
-                            onDelete()
-                            onDismiss()
-                        }
-                    ) { Text(stringResource(R.string.delete)) }
-                }*/
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             }
         },
         // ダイアログの中身（入力フォーム一覧）
         text = {
             Column {
-                // プルダウン開閉フラグ
                 var categoryExpanded by remember { mutableStateOf(false) }
-                var reminderExpanded by remember { mutableStateOf(false) } // 💡 通知時間用
+                var reminderExpanded by remember { mutableStateOf(false) } // 開始通知用
 
                 // スケジュール名入力欄
                 OutlinedTextField(
@@ -160,43 +150,42 @@ fun ScheduleInputDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 開始時間設定ボタン（午前/午後表記を適用）
                     Button(
                         onClick = onSelectTime,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            if (selectedTime.isEmpty())
-                                stringResource(R.string.StartTime_enter)
-                            else
-                                convertTo12HourLabel(selectedTime)
-                        )
+                        Text(if (selectedTime.isEmpty()) stringResource(R.string.StartTime_enter) else convertTo12HourLabel(selectedTime))
                     }
-                    // 終了時間設定ボタン（午前/午後表記を適用）
                     Button(
                         onClick = onSelectEndTime,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            if (selectedEndTime.isEmpty())
-                                stringResource(R.string.EndTime_enter)
-                            else
-                                convertTo12HourLabel(selectedEndTime)
-                        )
+                        Text(if (selectedEndTime.isEmpty()) stringResource(R.string.EndTime_enter) else convertTo12HourLabel(selectedEndTime))
                     }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // 💡 ----- 通知時間のプルダウン -----
-                Text(text = "通知設定", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                // ----- 開始時間の通知設定 -----
+                Text(text = "開始時間の通知設定", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
 
-                // 表示用の文字を生成（-1なら「通知なし」、0なら「時間ピッタリ」、それ以外は「XX分前」）
+                // 💡 修正：ラベル表示からも 9999 の可能性を排除
                 val reminderLabel = when (selectedReminderMinutes) {
                     -1 -> "通知なし"
                     0 -> "時間ピッタリ"
+                    9999 -> "5分前"
                     else -> "${selectedReminderMinutes}分前"
                 }
+
+                val reminderOptions = listOf(
+                    Pair("通知なし", -1),
+                    Pair("時間ピッタリ", 0),
+                    Pair("5分前", 5),
+                    Pair("10分前", 10),
+                    Pair("15分前", 15),
+                    Pair("30分前", 30),
+                    Pair("1時間前", 60)
+                )
 
                 ExposedDropdownMenuBox(
                     expanded = reminderExpanded,
@@ -215,18 +204,7 @@ fun ScheduleInputDialog(
                         expanded = reminderExpanded,
                         onDismissRequest = { reminderExpanded = false }
                     ) {
-                        // 選べる時間の選択肢リストを作成
-                        val options = listOf(
-                            Pair("通知なし", -1),
-                            Pair("時間ピッタリ", 0),
-                            Pair("5分前", 5),
-                            Pair("10分前", 10),
-                            Pair("15分前", 15),
-                            Pair("30分前", 30),
-                            Pair("1時間前", 60)
-                        )
-
-                        options.forEach { (label, minutes) ->
+                        reminderOptions.forEach { (label, minutes) ->
                             DropdownMenuItem(
                                 text = { Text(text = label) },
                                 onClick = {
@@ -256,12 +234,10 @@ fun ScheduleInputDialog(
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
                     )
 
-                    // 選択項目の中身一覧
                     ExposedDropdownMenu(
                         expanded = categoryExpanded,
                         onDismissRequest = { categoryExpanded = false }
                     ) {
-                        // フィルター用の「すべて」を除外したリストをメニューに表示
                         categories.filter { it != "すべて" }.forEach { category ->
                             DropdownMenuItem(
                                 text = { Text(text = category) },
@@ -275,15 +251,10 @@ fun ScheduleInputDialog(
                     }
                 }
 
-                // エラーメッセージの出し分け表示
                 if (showError || isTimeInvalid) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = if (isTimeInvalid) {
-                            "終了時間は開始時間より後の時刻にしてください"
-                        } else {
-                            "すべて入力・選択してください"
-                        },
+                        text = if (isTimeInvalid) "終了時間は開始時間より後の時刻にしてください" else "すべて入力・選択してください",
                         color = androidx.compose.ui.graphics.Color.Red,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold

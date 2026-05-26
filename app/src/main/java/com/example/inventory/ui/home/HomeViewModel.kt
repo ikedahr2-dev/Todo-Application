@@ -9,6 +9,7 @@ import android.content.Context
 import com.example.inventory.cancelTodoAlarm
 import com.example.inventory.updateOngoingTaskCountNotification
 import com.example.inventory.scheduleTodoAlarm
+import com.example.inventory.scheduleTodoEndAlarm
 import com.example.inventory.convertDateTimeToMillis
 import com.example.inventory.data.Schedule
 import com.example.inventory.data.SchedulesRepository
@@ -119,11 +120,15 @@ class HomeViewModel(
         _uiState.update { it.copy(showInputBox = false) }
     }
 
-    // 💡 引数に reminderMinutes を追加
-    fun addText(text: String, date: String, time: String, endTime: String, category: String, detail: String, reminderMinutes: Int) {
+    // 💡 修正: 新規追加処理
+    fun addText(text: String, date: String, time: String, endTime: String, category: String, detail: String, reminderMinutes: Int, endReminderMinutes: Int) {
         viewModelScope.launch {
             val targetEndTime = endTime.ifBlank { time }
             val taskTimeMillis = convertDateTimeToMillis(date, targetEndTime) ?: System.currentTimeMillis()
+
+            // 💡 画面から渡ってきた選択分数（デフォルト5分）を確実に適用
+            // 万が一ここが不正な値（9999など）で入ってきた場合の防衛策として、初期作成時は強制的に5分前をセットします
+            val finalReminderMinutes = if (reminderMinutes == 9999) 5 else reminderMinutes
 
             val newSchedule = Schedule(
                 text = text,
@@ -133,17 +138,27 @@ class HomeViewModel(
                 category = category,
                 detail = detail,
                 data = taskTimeMillis,
-                reminderMinutes = reminderMinutes // 💡 追加
+                reminderMinutes = finalReminderMinutes // 💡 5分前（または選択値）を確実に保存
             )
             schedulesRepository.insertSchedule(newSchedule)
 
             val savedList = schedulesRepository.getAllSchedulesStream().first()
             val savedItem = savedList.find { it.text == text && it.date == date && it.time == time }
 
-            val alarmTimeMillis = convertDateTimeToMillis(date, time)
-            if (savedItem != null && alarmTimeMillis != null && alarmTimeMillis > System.currentTimeMillis()) {
-                // 💡 引数に reminderMinutes を引き渡す
-                scheduleTodoAlarm(context = application.applicationContext, taskId = savedItem.id, taskTitle = text, taskTimeMillis = alarmTimeMillis, reminderMinutes = reminderMinutes)
+            if (savedItem != null) {
+                // 1. 開始アラーム（5分前など）の予約
+                val alarmTimeMillis = convertDateTimeToMillis(date, time)
+                if (alarmTimeMillis != null && alarmTimeMillis > System.currentTimeMillis()) {
+                    scheduleTodoAlarm(context = application.applicationContext, taskId = savedItem.id, taskTitle = text, taskTimeMillis = alarmTimeMillis, reminderMinutes = finalReminderMinutes)
+                }
+
+                // 2. 終了アラーム（時間ぴったり固定）の予約
+                if (endTime.isNotBlank()) {
+                    val endAlarmTimeMillis = convertDateTimeToMillis(date, endTime)
+                    if (endAlarmTimeMillis != null && endAlarmTimeMillis > System.currentTimeMillis()) {
+                        scheduleTodoEndAlarm(context = application.applicationContext, taskId = savedItem.id, taskTitle = text, endTimeMillis = endAlarmTimeMillis)
+                    }
+                }
             }
 
             onDismissInputBox()
@@ -158,11 +173,14 @@ class HomeViewModel(
         }
     }
 
-    // 💡 引数に newReminderMinutes を追加
-    fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String, newEndTime: String, newCategory: String, newDetail: String, newReminderMinutes: Int) {
+    // 💡 修正: 編集更新処理
+    fun updateItem(schedule: Schedule, newText: String, newDate: String, newTime: String, newEndTime: String, newCategory: String, newDetail: String, newReminderMinutes: Int, newEndReminderMinutes: Int) {
         viewModelScope.launch {
             val targetEndTime = newEndTime.ifBlank { newTime }
             val taskTimeMillis = convertDateTimeToMillis(newDate, targetEndTime) ?: System.currentTimeMillis()
+
+            // 💡 編集更新時も、画面の入力値（9999以外）を正しくマッピング
+            val finalReminderMinutes = if (newReminderMinutes == 9999) 5 else newReminderMinutes
 
             val updatedSchedule = schedule.copy(
                 text = newText,
@@ -172,17 +190,25 @@ class HomeViewModel(
                 category = newCategory,
                 detail = newDetail,
                 data = taskTimeMillis,
-                reminderMinutes = newReminderMinutes // 💡 追加
+                reminderMinutes = finalReminderMinutes
             )
             schedulesRepository.updateSchedule(updatedSchedule)
 
-            // 💡 変更前の古い通知設定を使って、一度アラームをキャンセルする
+            // 古いアラームをキャンセル
             cancelTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, reminderMinutes = schedule.reminderMinutes)
 
+            // 1. 新しい開始前通知アラームの予約
             val alarmTimeMillis = convertDateTimeToMillis(newDate, newTime)
             if (alarmTimeMillis != null && alarmTimeMillis > System.currentTimeMillis()) {
-                // 💡 新しい通知設定でアラームを再予約する
-                scheduleTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = newText, taskTimeMillis = alarmTimeMillis, reminderMinutes = newReminderMinutes)
+                scheduleTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = newText, taskTimeMillis = alarmTimeMillis, reminderMinutes = finalReminderMinutes)
+            }
+
+            // 2. 新しい終了アラーム（時間ぴったり固定）の予約
+            if (newEndTime.isNotBlank()) {
+                val endAlarmTimeMillis = convertDateTimeToMillis(newDate, newEndTime)
+                if (endAlarmTimeMillis != null && endAlarmTimeMillis > System.currentTimeMillis()) {
+                    scheduleTodoEndAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = newText, endTimeMillis = endAlarmTimeMillis)
+                }
             }
 
             onDismissInputBox()
@@ -220,9 +246,20 @@ class HomeViewModel(
             if (isChecked) {
                 cancelTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, reminderMinutes = schedule.reminderMinutes)
             } else {
+                // 💡 チェックを外して未完了に戻した時、古い保留用フラグ(9999)だった場合はデフォルトの5分前に安全復帰させます
+                val fallbackReminderMinutes = if (schedule.reminderMinutes == 9999) 5 else schedule.reminderMinutes
+
                 val alarmTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
                 if (alarmTimeMillis != null && alarmTimeMillis > System.currentTimeMillis()) {
-                    scheduleTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, taskTimeMillis = alarmTimeMillis, reminderMinutes = schedule.reminderMinutes)
+                    scheduleTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, taskTimeMillis = alarmTimeMillis, reminderMinutes = fallbackReminderMinutes)
+                }
+
+                val targetEndTime = schedule.endTime ?: ""
+                if (targetEndTime.isNotBlank()) {
+                    val endAlarmTimeMillis = convertDateTimeToMillis(schedule.date, targetEndTime)
+                    if (endAlarmTimeMillis != null && endAlarmTimeMillis > System.currentTimeMillis()) {
+                        scheduleTodoEndAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, endTimeMillis = endAlarmTimeMillis)
+                    }
                 }
             }
             refreshOngoingNotification()
