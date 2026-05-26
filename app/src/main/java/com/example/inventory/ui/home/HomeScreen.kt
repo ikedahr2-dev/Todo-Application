@@ -88,8 +88,11 @@ fun HomeScreen(
     var newCategoryText by remember { mutableStateOf("") }
     var categoryToDelete by remember { mutableStateOf<String?>(null) }
 
-    // 💡 追加：長押しで削除しようとしているタスクを保持する変数
+    // 長押しで削除しようとしているタスクを保持する変数
     var scheduleToDelete by remember { mutableStateOf<Schedule?>(null) }
+
+    // 💡 追加：完了した予定セクションが開いているかどうかを管理する状態（初期値は折りたたみ）
+    var isCompletedSectionExpanded by rememberSaveable { mutableStateOf(false) }
 
     val selectedCategoryTab = if (selectedFilterCategory.isBlank()) "すべて" else selectedFilterCategory
 
@@ -285,21 +288,23 @@ fun HomeScreen(
                                     )
                                 }
                             } else {
+                                // 💡 引数に開閉状態（isCompletedSectionExpanded）とその変更処理を追加
                                 scheduleMainList(
                                     groupedUncompleted = groupedUncompleted,
                                     completedSchedules = completedSchedules,
                                     viewModel = viewModel,
+                                    isCompletedSectionExpanded = isCompletedSectionExpanded,
+                                    onToggleCompletedSection = { isCompletedSectionExpanded = !isCompletedSectionExpanded },
                                     onEditSavedItem = { schedule ->
                                         selectedDate = schedule.date
                                         selectedTime = schedule.time
                                         selectedEndTime = schedule.endTime ?: ""
                                         viewModel.onEditSavedItem(schedule)
                                     },
-                                    // 💡 追加：長押しされたら削除変数にセット
                                     onDeleteSavedItem = { schedule -> scheduleToDelete = schedule }
                                 )
-
-                                item { Spacer(modifier = Modifier.height(100.dp)) }
+                                //完了した予定の下の余白調整
+                                item { Spacer(modifier = Modifier.height(20.dp)) }
                             }
                         }
                     }
@@ -381,7 +386,7 @@ fun HomeScreen(
         }
     }
 
-    // 💡 追加：タスク削除の確認ダイアログ
+    // タスク削除の確認ダイアログ
     scheduleToDelete?.let { schedule ->
         AlertDialog(
             onDismissRequest = { scheduleToDelete = null },
@@ -392,7 +397,7 @@ fun HomeScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     onClick = {
                         viewModel.deleteItem(schedule)
-                        scheduleToDelete = null // 削除したらダイアログを閉じる
+                        scheduleToDelete = null
                     }
                 ) { Text("削除", color = MaterialTheme.colorScheme.onError) }
             },
@@ -437,13 +442,12 @@ fun HomeScreen(
     }
 }
 
-// 💡 onDeleteItem の引数を追加し、長押し（combinedClickable）に対応
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ScheduleItemRow(
     schedule: Schedule,
     onEditItem: (Schedule) -> Unit,
-    onDeleteItem: (Schedule) -> Unit, // 💡 追加
+    onDeleteItem: (Schedule) -> Unit,
     viewModel: HomeViewModel
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -486,7 +490,6 @@ private fun ScheduleItemRow(
             .padding(vertical = 4.dp)
             .border(1.5.dp, borderColor, RoundedCornerShape(8.dp))
             .background(backgroundColor, RoundedCornerShape(8.dp))
-            // 💡 clickable から combinedClickable に変更（長押し対応）
             .combinedClickable(
                 onClick = { expanded = !expanded },
                 onLongClick = { onDeleteItem(schedule) }
@@ -555,13 +558,15 @@ private fun ScheduleItemRow(
     }
 }
 
-// 💡 onDeleteSavedItem の引数を追加
+// 💡 修正：開閉状態（isCompletedSectionExpanded）を受け取るように引数を拡張
 private fun LazyListScope.scheduleMainList(
     groupedUncompleted: Map<String, List<Schedule>>,
     completedSchedules: List<Schedule>,
     viewModel: HomeViewModel,
+    isCompletedSectionExpanded: Boolean,         // ★追加：状態を受け取る
+    onToggleCompletedSection: () -> Unit,       // ★追加：タップ時の開閉切り替え処理
     onEditSavedItem: (Schedule) -> Unit,
-    onDeleteSavedItem: (Schedule) -> Unit // 💡 追加
+    onDeleteSavedItem: (Schedule) -> Unit
 ) {
     groupedUncompleted.forEach { (date, schedules) ->
         item { Text(text = "$date の予定", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) }
@@ -572,8 +577,43 @@ private fun LazyListScope.scheduleMainList(
 
     if (completedSchedules.isNotEmpty()) {
         item {
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "完了した予定", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp)
+            // 💡 開閉状態（矢印）のアニメーションをセット
+            val arrowRotationDegree by animateFloatAsState(
+                targetValue = if (isCompletedSectionExpanded) 180f else 0f,
+                label = "CompletedSectionArrowAnimation"
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 💡 修正：「完了した予定（件数）」の部分を丸ごとクリックして開閉できるように変更
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clickable { onToggleCompletedSection() }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "完了した予定 (${completedSchedules.size})",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 16.sp
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    // 開閉状態に合わせて向きがくるっと回る矢印アイコンを追加
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .size(22.dp)
+                            .rotate(arrowRotationDegree)
+                    )
+                }
+
                 Button(
                     onClick = { viewModel.deleteCompletedSchedules() },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD72323)),
@@ -589,8 +629,12 @@ private fun LazyListScope.scheduleMainList(
                 }
             }
         }
-        items(completedSchedules) { schedule ->
-            ScheduleItemRow(schedule = schedule, onEditItem = { onEditSavedItem(schedule) }, onDeleteItem = { onDeleteSavedItem(schedule) }, viewModel = viewModel)
+
+        // 💡 修正：開いているとき（true）だけ、完了したタスクのリストを展開する処理
+        if (isCompletedSectionExpanded) {
+            items(completedSchedules) { schedule ->
+                ScheduleItemRow(schedule = schedule, onEditItem = { onEditSavedItem(schedule) }, onDeleteItem = { onDeleteSavedItem(schedule) }, viewModel = viewModel)
+            }
         }
     }
 }
