@@ -87,6 +87,9 @@ fun HomeScreen(
         }
     }
 
+    var showErrorBlock by remember { mutableStateOf(false) }
+    var showErrorBlock2 by remember { mutableStateOf(false) }
+
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker by remember { mutableStateOf(false) }
@@ -95,6 +98,7 @@ fun HomeScreen(
     var selectedTime by remember { mutableStateOf("") }
     var selectedEndTime by remember { mutableStateOf("") }
 
+    // 💡 0: リスト, 1: カレンダー, 2: タイムライン, 3: ゲーム
     var currentScreenMode by remember { mutableStateOf(0) }
 
     val selectedFilterCategory = uiState.selectedFilterCategory
@@ -102,11 +106,9 @@ fun HomeScreen(
     val dynamicCategories = uiState.categoriesList
 
     var showAddCategoryDialog by remember { mutableStateOf(false) }
-
     var newCategoryText by remember { mutableStateOf("") }
     var categoryToDelete by remember { mutableStateOf<String?>(null) }
     var scheduleToDelete by remember { mutableStateOf<Schedule?>(null) }
-
     var isCompletedSectionExpanded by rememberSaveable { mutableStateOf(false) }
 
     val selectedCategoryTab: String = if (selectedFilterCategory.isBlank()) "すべて" else selectedFilterCategory
@@ -189,6 +191,12 @@ fun HomeScreen(
                                 viewModel.onEditSavedItem(schedule)
                             }
                         )
+                    }
+                }
+                3 -> {
+                    // 💡 別ファイル（GameScreen.kt）にあるGameScreenを呼び出します
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        GameScreen()
                     }
                 }
                 else -> {
@@ -491,6 +499,8 @@ fun HomeScreen(
     }
 }
 
+// 💡 解決：古い GameScreen(){} 記述はここにありません。綺麗に消去されました！
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ScheduleItemRow(
@@ -720,7 +730,6 @@ private fun LazyListScope.scheduleMainList(
                     Text(text = "完了した予定 (${completedSchedules.size})", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
 
-                // 💡 修正：ゴミ箱マークの左横に、タップ可能な「一括削除」の文言テキストを追加配置しました
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.clickable { viewModel.deleteCompletedSchedules() }
@@ -765,6 +774,7 @@ fun ViewToggleButton(currentMode: Int, onModeChange: (Int) -> Unit) {
             Button(onClick = { onModeChange(0) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = if (currentMode == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (currentMode == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)) { Text("リスト", fontSize = 14.sp) }
             Button(onClick = { onModeChange(1) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = if (currentMode == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (currentMode == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)) { Text("カレンダー", fontSize = 14.sp) }
             Button(onClick = { onModeChange(2) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = if (currentMode == 2) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (currentMode == 2) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)) { Text("タイムライン", fontSize = 14.sp) }
+            Button(onClick = { onModeChange(3) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = if (currentMode == 3) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (currentMode == 3) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)) { Text("ゲーム", fontSize = 14.sp) }
         }
     }
 }
