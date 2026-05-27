@@ -31,6 +31,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
@@ -75,8 +76,9 @@ fun CalendarScreen(
 ) {
     val state = rememberDatePickerState()
 
-    // 💡 カレンダー画面でも、長押し削除用の状態変数を用意
+    //カレンダー画面用の長押し削除、完了確認の状態変数
     var scheduleToDelete by remember { mutableStateOf<Schedule?>(null) }
+    var schedulePendingCheck by remember { mutableStateOf<CheckConfirmationState?>(null) }
 
     LaunchedEffect(state.selectedDateMillis) {
         state.selectedDateMillis?.let { millis ->
@@ -113,7 +115,7 @@ fun CalendarScreen(
                     shape = CircleShape,
                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                     modifier = Modifier.height(40.dp).clickable { onCategorySelected(category) }
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -150,9 +152,25 @@ fun CalendarScreen(
                 val arrowRotationDegree by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "ArrowAnimation")
 
                 val currentTime = System.currentTimeMillis()
-                val targetTime = schedule.endTime.ifBlank { schedule.time }
-                val taskTimeMillis = convertDateTimeToMillis(schedule.date, targetTime)
-                val isOverdue = taskTimeMillis != null && taskTimeMillis < currentTime && !schedule.isCompleted
+                val startTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
+                val taskEndTimeMillis = convertDateTimeToMillis(schedule.date, schedule.endTime)
+
+                val fiveMinutesMillis = 5 * 60 * 1000
+                val isWithinFiveMinutesBeforeStart = startTimeMillis != null &&
+                        currentTime < startTimeMillis &&
+                        currentTime >= (startTimeMillis - fiveMinutesMillis)
+
+                val isTooEarlyForManualCheck = startTimeMillis != null && currentTime < startTimeMillis && !isWithinFiveMinutesBeforeStart
+                val isOverdue = taskEndTimeMillis != null && taskEndTimeMillis < currentTime && !schedule.isEndCompleted
+
+                val isPastEndTime = taskEndTimeMillis != null && currentTime >= taskEndTimeMillis
+                val isPastStartTime = startTimeMillis != null && currentTime >= startTimeMillis
+
+                val isNotificationPendingCompleted = schedule.reminderMinutes == 9999 && isPastStartTime
+                val isVisualCompleted = schedule.isCompleted || isNotificationPendingCompleted
+                val isEndVisualCompleted = isPastEndTime || schedule.isEndCompleted
+
+                val shouldShowStrikeThrough = isEndVisualCompleted
 
                 val isDark = isSystemInDarkTheme()
                 val borderColor = if (isOverdue) Color(0xFF94403E) else md_theme_light_primary
@@ -169,7 +187,6 @@ fun CalendarScreen(
                         .padding(vertical = 4.dp)
                         .border(BorderStroke(1.5.dp, borderColor), RoundedCornerShape(8.dp))
                         .background(backgroundColor, RoundedCornerShape(8.dp))
-                        // 💡 clickable から combinedClickable に変更
                         .combinedClickable(
                             onClick = { expanded = !expanded },
                             onLongClick = { scheduleToDelete = schedule }
@@ -177,12 +194,38 @@ fun CalendarScreen(
                         .padding(12.dp)
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        //1つ目のチェックボックス（開始）
                         Checkbox(
-                            checked = schedule.isCompleted,
-                            onCheckedChange = { isChecked -> viewModel.toggleScheduleStatus(schedule, isChecked) },
+                            checked = isVisualCompleted,
+                            onCheckedChange = { isChecked ->
+                                if (isChecked && isTooEarlyForManualCheck && !schedule.isCompleted) {
+                                    schedulePendingCheck = CheckConfirmationState(schedule, isChecked, isEndTimeTarget = false)
+                                } else {
+                                    viewModel.toggleScheduleStatus(schedule, isChecked)
+                                }
+                            },
                             modifier = Modifier.size(24.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        //2つ目のチェックボックス（終了）
+                        Checkbox(
+                            checked = schedule.isEndCompleted,
+                            onCheckedChange = { isChecked ->
+                                if (isChecked && !isPastEndTime) {
+                                    schedulePendingCheck = CheckConfirmationState(schedule, isChecked, isEndTimeTarget = true)
+                                } else {
+                                    viewModel.toggleScheduleEndStatus(schedule, isChecked)
+                                }
+                            },
+                            modifier = Modifier.size(28.dp),
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = MaterialTheme.colorScheme.secondary,
+                                checkmarkColor = Color.White
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+
                         Text(
                             text = schedule.text,
                             fontSize = 20.sp,
@@ -190,7 +233,13 @@ fun CalendarScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
-                            style = androidx.compose.ui.text.TextStyle(textDecoration = if (schedule.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else androidx.compose.ui.text.style.TextDecoration.None)
+                            style = androidx.compose.ui.text.TextStyle(
+                                textDecoration = if (shouldShowStrikeThrough) {
+                                    androidx.compose.ui.text.style.TextDecoration.LineThrough
+                                } else {
+                                    androidx.compose.ui.text.style.TextDecoration.None
+                                }
+                            )
                         )
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
                             Text(text = displayStartTime, fontSize = 14.sp, color = Color.Gray)
@@ -213,6 +262,7 @@ fun CalendarScreen(
                             val reminderText = when (schedule.reminderMinutes) {
                                 -1 -> "通知なし"
                                 0 -> "時間ピッタリ"
+                                9999 -> "通知で完了済み（開始待機）"
                                 else -> "${schedule.reminderMinutes}分前"
                             }
                             Text(text = "🔔 通  知: $reminderText", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -234,7 +284,38 @@ fun CalendarScreen(
         }
     }
 
-    // 💡 カレンダー画面用：タスク削除の確認ダイアログ
+    //早期完了確認ダイアログ
+    schedulePendingCheck?.let { config ->
+        val titleText = if (config.isEndTimeTarget) "予定終了前の完了確認" else "予定開始前の完了確認"
+        val bodyText = if (config.isEndTimeTarget) {
+            "「${config.schedule.text}」は終了時間前ですが、完了にしてもよろしいですか？"
+        } else {
+            "「${config.schedule.text}」は開始時間前ですが、完了にしてもよろしいですか？"
+        }
+
+        AlertDialog(
+            onDismissRequest = { schedulePendingCheck = null },
+            title = { Text(titleText) },
+            text = { Text(bodyText) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (config.isEndTimeTarget) {
+                            viewModel.toggleScheduleEndStatus(config.schedule, config.isChecked)
+                        } else {
+                            viewModel.toggleScheduleStatus(config.schedule, config.isChecked)
+                        }
+                        schedulePendingCheck = null
+                    }
+                ) { Text("はい") }
+            },
+            dismissButton = {
+                TextButton(onClick = { schedulePendingCheck = null }) { Text("キャンセル") }
+            }
+        )
+    }
+
+    //タスク削除の確認ダイアログ
     scheduleToDelete?.let { schedule ->
         AlertDialog(
             onDismissRequest = { scheduleToDelete = null },
@@ -245,7 +326,7 @@ fun CalendarScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     onClick = {
                         viewModel.deleteItem(schedule)
-                        scheduleToDelete = null // 削除したらダイアログを閉じる
+                        scheduleToDelete = null
                     }
                 ) { Text("削除", color = MaterialTheme.colorScheme.onError) }
             },

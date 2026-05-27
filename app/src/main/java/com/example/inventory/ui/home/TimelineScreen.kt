@@ -51,21 +51,20 @@ fun TimelineScreen(
     val todaysSchedules = remember(scheduleList, selectedDate) {
         scheduleList.filter { it.date == selectedDate }
     }
+
+    // 💡 修正：終了チェックボックス（isEndCompleted）が入っていないものを未完了TODOとして抽出
     val todaysIncompleteTasks = remember(todaysSchedules) {
-        todaysSchedules.filter { !it.isCompleted }
+        todaysSchedules.filter { !it.isEndCompleted }
     }
     val totalCount = todaysSchedules.size
-    val completedCount = todaysSchedules.count { it.isCompleted }
+    val completedCount = todaysSchedules.count { it.isEndCompleted }
     val scrollState = rememberScrollState()
 
-    // 予定がないときの、標準の5分マスのコンパクトな横幅
     val defaultStepWidth = 15.dp
+    var schedulePendingCheck by remember { mutableStateOf<CheckConfirmationState?>(null) }
 
-    // 全288個の5分マスの幅を個別に動的決定するマップ
     val dynamicFiveMinuteWidths = remember(todaysSchedules, scheduleList) {
         val widthMap = IntArray(288) { defaultStepWidth.value.toInt() }
-
-        // 1. 各5分マスのそれぞれの地点において、重なっている予定の「最大文字数」を事前集計する
         val maxCharCounts = IntArray(288) { 0 }
         todaysSchedules.forEach { schedule ->
             try {
@@ -87,7 +86,6 @@ fun TimelineScreen(
             } catch (e: Exception) {}
         }
 
-        // 2. 集計した「最大文字数」を基準に、10分なら2分割、15分なら3分割して各マスを均等に引き延ばす
         todaysSchedules.forEach { schedule ->
             try {
                 val startParts = schedule.time.split(":")
@@ -110,7 +108,8 @@ fun TimelineScreen(
                         }
                     }
 
-                    val requiredTotalWidth = (maxCharsInThisRange * 18) + 110
+                    // 💡 横幅計算を2连チェックボックス幅（少し広め）にアジャスト
+                    val requiredTotalWidth = (maxCharsInThisRange * 18) + 145
                     val originalTotalWidth = defaultStepWidth.value.toInt() * blockCount
                     val delta = requiredTotalWidth - originalTotalWidth
 
@@ -123,14 +122,11 @@ fun TimelineScreen(
                         }
                     }
                 }
-            } catch (e: Exception) {
-                // パース失敗時はデフォルト維持
-            }
+            } catch (e: Exception) {}
         }
         widthMap
     }
 
-    // 任意の時間位置までの正確な横オフセット距離（dp）を算出する関数
     fun getOffsetUpToBlock(targetTime: Float): Dp {
         val totalMinutes = (targetTime * 60f).toInt()
         val targetBlockCount = totalMinutes / 5
@@ -149,7 +145,6 @@ fun TimelineScreen(
         return accumulatedDp
     }
 
-    // 各1時間の総横幅を算出
     val hourWidths = remember(dynamicFiveMinuteWidths) {
         IntArray(24) { hour ->
             var sum = 0
@@ -165,7 +160,6 @@ fun TimelineScreen(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        // 上部エリア
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -186,14 +180,11 @@ fun TimelineScreen(
             }
         }
 
-        // 横スクロールタイムラインエリア
         Box(
             modifier = Modifier.fillMaxWidth().weight(4f).horizontalScroll(scrollState)
         ) {
-            // ベースのタイムライン横線
             Box(modifier = Modifier.fillMaxWidth().height(2.dp).padding(top = 35.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)))
 
-            // 背景グリッドと目盛り文字の位置ズレを完全に防ぐ一体型コンテナ構造
             Row(modifier = Modifier.fillMaxHeight()) {
                 (0..23).forEach { hour ->
                     val currentHourWidth = hourWidths[hour].dp
@@ -203,7 +194,6 @@ fun TimelineScreen(
                             .width(currentHourWidth)
                             .fillMaxHeight()
                     ) {
-                        // 1. 背景の5分マスグリッド線
                         Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Start) {
                             for (i in 0 until 12) {
                                 val blockIndex = (hour * 12) + i
@@ -224,7 +214,6 @@ fun TimelineScreen(
                             }
                         }
 
-                        // 2. メイン目盛り（XX:00）
                         Box(
                             modifier = Modifier.align(Alignment.TopStart)
                         ) {
@@ -244,8 +233,6 @@ fun TimelineScreen(
                             }
                         }
 
-                        // 3. 途中から広がる5分枠用の補助時間（XX:XX）の配置
-                        // 💡 【修正点】すべての5分を出すのではなく、登録されている予定の開始時間と終了時間にだけ文字を絞り込む
                         var currentAccumulatedWidth = 0.dp
                         for (m in 0 until 12) {
                             val blockIndex = (hour * 12) + m
@@ -253,7 +240,6 @@ fun TimelineScreen(
                             val minuteValue = m * 5
                             val timeString = String.format("%02d:%02d", hour, minuteValue)
 
-                            // 💡 いずれかの予定の「開始時刻」または「終了時刻」と完全一致するか判定
                             val isMatchTime = todaysSchedules.any { it.time == timeString || it.endTime == timeString }
 
                             if (isMatchTime && minuteValue != 0) {
@@ -282,7 +268,6 @@ fun TimelineScreen(
                     }
                 }
 
-                // 最終24:00の線用目盛り
                 Box(modifier = Modifier.width(60.dp), contentAlignment = Alignment.TopStart) {
                     Column(horizontalAlignment = Alignment.Start) {
                         Text(text = "24:00", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f), fontWeight = FontWeight.Bold)
@@ -292,7 +277,6 @@ fun TimelineScreen(
                 }
             }
 
-            // 予定カードレイアウト領域
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -324,6 +308,7 @@ fun TimelineScreen(
                                 schedule = schedule,
                                 cardWidth = cardWidth,
                                 onEditItem = { onTimelineItemClick(schedule) },
+                                onRequireConfirmation = { state -> schedulePendingCheck = state },
                                 viewModel = viewModel
                             )
                         }
@@ -332,14 +317,12 @@ fun TimelineScreen(
             }
         }
 
-        // 振り返りエリアの境界線
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Divider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
             Text(text = "振り返りエリア", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 8.dp))
             Divider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
         }
 
-        // 下半分：振り返りダッシュボードエリア
         Column(
             modifier = Modifier.fillMaxWidth().weight(5f).padding(bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -363,13 +346,56 @@ fun TimelineScreen(
                     } else {
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             items(todaysIncompleteTasks) { task ->
+                                val taskStartTimeMillis = convertDateTimeToMillis(task.date, task.time)
+                                val taskEndTimeMillis = convertDateTimeToMillis(task.date, task.endTime)
+                                val isWithinFiveMinutes = taskStartTimeMillis != null && System.currentTimeMillis() < taskStartTimeMillis && System.currentTimeMillis() >= (taskStartTimeMillis - 5 * 60 * 1000)
+                                val isTooEarly = taskStartTimeMillis != null && System.currentTimeMillis() < taskStartTimeMillis && !isWithinFiveMinutes
+                                val isPastEnd = taskEndTimeMillis != null && System.currentTimeMillis() >= taskEndTimeMillis
+
+                                val isNotificationPendingCompleted = task.reminderMinutes == 9999 && taskStartTimeMillis != null && System.currentTimeMillis() >= taskStartTimeMillis
+                                val isVisCompleted = task.isCompleted || isNotificationPendingCompleted
+
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.fillMaxWidth().clickable { onTimelineItemClick(task) }.padding(vertical = 2.dp)
                                 ) {
-                                    Checkbox(checked = task.isCompleted, onCheckedChange = { isChecked -> viewModel.toggleScheduleStatus(task, isChecked) }, modifier = Modifier.size(28.dp))
+                                    //下部エリア：1つ目のチェックボックス
+                                    Checkbox(
+                                        checked = isVisCompleted,
+                                        onCheckedChange = { isChecked ->
+                                            if (isChecked && isTooEarly && !task.isCompleted) {
+                                                schedulePendingCheck = CheckConfirmationState(task, isChecked, isEndTimeTarget = false)
+                                            } else {
+                                                viewModel.toggleScheduleStatus(task, isChecked)
+                                            }
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+
+                                    //下部エリア：2つ目のチェックボックス
+                                    Checkbox(
+                                        checked = task.isEndCompleted,
+                                        onCheckedChange = { isChecked ->
+                                            if (isChecked && !isPastEnd) {
+                                                schedulePendingCheck = CheckConfirmationState(task, isChecked, isEndTimeTarget = true)
+                                            } else {
+                                                viewModel.toggleScheduleEndStatus(task, isChecked)
+                                            }
+                                        },
+                                        modifier = Modifier.size(28.dp),
+                                        colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.secondary)
+                                    )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text(text = task.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        text = task.text,
+                                        fontSize = 14.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = androidx.compose.ui.text.TextStyle(
+                                            textDecoration = if (task.isEndCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else androidx.compose.ui.text.style.TextDecoration.None
+                                        )
+                                    )
                                     Spacer(modifier = Modifier.weight(1f))
                                     Text(text = task.time, fontSize = 12.sp, color = Color.Gray)
                                 }
@@ -401,7 +427,7 @@ fun TimelineScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             categoriesWithTasks.forEach { (categoryName, list) ->
                                 val catTotal = list.size
-                                val catCompleted = list.count { it.isCompleted }
+                                val catCompleted = list.count { it.isEndCompleted }
                                 val progressFactor = if (catTotal > 0) catCompleted.toFloat() / catTotal.toFloat() else 0f
                                 Column {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -418,21 +444,70 @@ fun TimelineScreen(
             }
         }
     }
+
+    //タイムライン画面用の確認アラートダイアログ
+    schedulePendingCheck?.let { config ->
+        val titleText = if (config.isEndTimeTarget) "予定終了前の完了確認" else "予定開始前の完了確認"
+        val bodyText = if (config.isEndTimeTarget) {
+            "「${config.schedule.text}」は終了時間前ですが、完了にしてもよろしいですか？"
+        } else {
+            "「${config.schedule.text}」は開始時間前ですが、完了にしてもよろしいですか？"
+        }
+
+        AlertDialog(
+            onDismissRequest = { schedulePendingCheck = null },
+            title = { Text(titleText) },
+            text = { Text(bodyText) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (config.isEndTimeTarget) {
+                            viewModel.toggleScheduleEndStatus(config.schedule, config.isChecked)
+                        } else {
+                            viewModel.toggleScheduleStatus(config.schedule, config.isChecked)
+                        }
+                        schedulePendingCheck = null
+                    }
+                ) { Text("はい") }
+            },
+            dismissButton = {
+                TextButton(onClick = { schedulePendingCheck = null }) { Text("キャンセル") }
+            }
+        )
+    }
 }
 
 @Composable
 private fun HorizontalTimelineCard(
     schedule: Schedule,
-    cardWidth: androidx.compose.ui.unit.Dp,
+    cardWidth: Dp,
     onEditItem: (Schedule) -> Unit,
+    onRequireConfirmation: (CheckConfirmationState) -> Unit,
     viewModel: HomeViewModel
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val arrowRotationDegree by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "ArrowAnimation")
 
     val currentTime = System.currentTimeMillis()
-    val taskTimeMillis = convertDateTimeToMillis(schedule.date, schedule.endTime)
-    val isOverdue = taskTimeMillis != null && taskTimeMillis < currentTime && !schedule.isCompleted
+    val startTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
+    val taskEndTimeMillis = convertDateTimeToMillis(schedule.date, schedule.endTime)
+
+    val fiveMinutesMillis = 5 * 60 * 1000
+    val isWithinFiveMinutesBeforeStart = startTimeMillis != null &&
+            currentTime < startTimeMillis &&
+            currentTime >= (startTimeMillis - fiveMinutesMillis)
+
+    val isTooEarlyForManualCheck = startTimeMillis != null && currentTime < startTimeMillis && !isWithinFiveMinutesBeforeStart
+    val isOverdue = taskEndTimeMillis != null && taskEndTimeMillis < currentTime && !schedule.isEndCompleted
+
+    val isPastEndTime = taskEndTimeMillis != null && currentTime >= taskEndTimeMillis
+    val isPastStartTime = startTimeMillis != null && currentTime >= startTimeMillis
+
+    val isNotificationPendingCompleted = schedule.reminderMinutes == 9999 && isPastStartTime
+    val isVisualCompleted = schedule.isCompleted || isNotificationPendingCompleted
+    val isEndVisualCompleted = isPastEndTime || schedule.isEndCompleted
+
+    val shouldShowStrikeThrough = isEndVisualCompleted
 
     val isDark = isSystemInDarkTheme()
     val borderColor = if (isOverdue) Color(0xFF94403E) else md_theme_light_primary
@@ -454,8 +529,37 @@ private fun HorizontalTimelineCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = schedule.isCompleted, onCheckedChange = { isChecked -> viewModel.toggleScheduleStatus(schedule, isChecked) }, modifier = Modifier.size(22.dp))
-                Spacer(modifier = Modifier.width(6.dp))
+                //カード内：1つ目のチェックボックス
+                Checkbox(
+                    checked = isVisualCompleted,
+                    onCheckedChange = { isChecked ->
+                        if (isChecked && isTooEarlyForManualCheck && !schedule.isCompleted) {
+                            onRequireConfirmation(CheckConfirmationState(schedule, isChecked, isEndTimeTarget = false))
+                        } else {
+                            viewModel.toggleScheduleStatus(schedule, isChecked)
+                        }
+                    },
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+
+                //カード内：2つ目のチェックボックス
+                Checkbox(
+                    checked = isEndVisualCompleted,
+                    onCheckedChange = { isChecked ->
+                        if (isChecked && !isPastEndTime) {
+                            onRequireConfirmation(CheckConfirmationState(schedule, isChecked, isEndTimeTarget = true))
+                        } else {
+                            viewModel.toggleScheduleEndStatus(schedule, isChecked)
+                        }
+                    },
+                    modifier = Modifier.size(22.dp),
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = MaterialTheme.colorScheme.secondary,
+                        checkmarkColor = Color.White
+                    )
+                )
+                Spacer(modifier = Modifier.width(4.dp))
 
                 Text(
                     text = schedule.text,
@@ -464,7 +568,11 @@ private fun HorizontalTimelineCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = androidx.compose.ui.text.TextStyle(
-                        textDecoration = if (schedule.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else androidx.compose.ui.text.style.TextDecoration.None
+                        textDecoration = if (shouldShowStrikeThrough) {
+                            androidx.compose.ui.text.style.TextDecoration.LineThrough
+                        } else {
+                            androidx.compose.ui.text.style.TextDecoration.None
+                        }
                     )
                 )
             }
@@ -476,7 +584,6 @@ private fun HorizontalTimelineCard(
             Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp, end = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Divider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                 Text(text = "📅 日　　付: ${schedule.date}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                //Text(text = "📌 予　　定: ${schedule.text}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(text = "📝 メ　　モ: ${schedule.detail.ifEmpty { "なし" }}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(text = "🏷️ カテゴリ: ${schedule.category.ifEmpty { "なし" }}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
