@@ -84,7 +84,6 @@ fun HomeScreen(
         while (true) {
             delay(1000 * 5)
             currentTimeMillis = System.currentTimeMillis()
-            // 💡 追記：時間経過による自動通知イベント完了などを見越して、5秒ごとに水分逆算を走らせる
             viewModel.calculateWaterFromCompletedTasks()
         }
     }
@@ -383,7 +382,7 @@ fun HomeScreen(
             }
 
             if (showTimePicker) {
-                val timePickerState = rememberTimePickerState()
+                val timePickerState = rememberTimePickerState(is24Hour = false)
                 AlertDialog(
                     onDismissRequest = { showTimePicker = false },
                     confirmButton = {
@@ -398,7 +397,7 @@ fun HomeScreen(
             }
 
             if (showEndTimePicker) {
-                val timePickerState = rememberTimePickerState()
+                val timePickerState = rememberTimePickerState(is24Hour = false)
                 AlertDialog(
                     onDismissRequest = { showEndTimePicker = false },
                     confirmButton = {
@@ -431,7 +430,6 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // 注意書きを赤文字・太字で追加
                     Text(
                         text = "⚠️1度チェックをつけると取り消しできません",
                         color = Color.Red,
@@ -576,22 +574,13 @@ private fun ScheduleItemRow(
     else if (isOverdue) Color(0xFFFFEBEE)
     else MaterialTheme.colorScheme.surfaceVariant
 
-    fun formatTo12Hour(timeStr: String?): String {
+    fun formatTo24Hour(timeStr: String?): String {
         if (timeStr.isNullOrBlank()) return "未設定"
-        val timeParts = timeStr.split(":")
-        val hour = timeParts.getOrNull(0)?.toIntOrNull() ?: return timeStr
-        val amPmSystem = if (hour < 12) "午前" else "午後"
-        val displayHour = when {
-            hour == 0 -> 12
-            hour > 12 -> hour - 12
-            else -> hour
-        }
-        val minute = timeParts.getOrNull(1) ?: "00"
-        return "$amPmSystem ${String.format("%02d", displayHour)}:$minute"
+        return timeStr
     }
 
-    val displayStartTime = formatTo12Hour(schedule.time)
-    val displayEndTime = formatTo12Hour(schedule.endTime)
+    val displayStartTime = formatTo24Hour(schedule.time)
+    val displayEndTime = formatTo24Hour(schedule.endTime)
 
     Column(
         modifier = Modifier
@@ -609,7 +598,6 @@ private fun ScheduleItemRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            //  1つ目：開始チェックボックス（一度ONになったら外せないようロック）
             Checkbox(
                 checked = isVisualCompleted,
                 onCheckedChange = { isChecked ->
@@ -619,12 +607,12 @@ private fun ScheduleItemRow(
                         viewModel.toggleScheduleStatus(schedule, isChecked)
                     }
                 },
-                enabled = !isVisualCompleted, // チェックが入っているなら無効化
+                enabled = !isVisualCompleted,
                 modifier = Modifier.padding(end = 4.dp),
                 colors = CheckboxDefaults.colors()
             )
 
-            // 2つ目：終了チェックボックス（一度ONになったら外せないようロック）
+            // 💡 変更点：開始チェックボックス(isVisualCompleted)がON、かつ、終了がまだ完了していない場合のみタップ可能に制限
             Checkbox(
                 checked = schedule.isEndCompleted,
                 onCheckedChange = { isChecked ->
@@ -634,7 +622,7 @@ private fun ScheduleItemRow(
                         viewModel.toggleScheduleEndStatus(schedule, isChecked)
                     }
                 },
-                enabled = !schedule.isEndCompleted, // チェックが入っているなら無効化
+                enabled = isVisualCompleted && !schedule.isEndCompleted,
                 modifier = Modifier.padding(end = 8.dp).size(28.dp),
                 colors = CheckboxDefaults.colors(
                     checkedColor = MaterialTheme.colorScheme.secondary,

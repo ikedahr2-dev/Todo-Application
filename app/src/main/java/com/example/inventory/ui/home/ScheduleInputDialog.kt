@@ -55,6 +55,7 @@ fun ScheduleInputDialog(
 
     var showError by remember { mutableStateOf(false) }
 
+    // 💡 既存機能：削除せずにしっかりと残してあります
     fun convertTo12HourLabel(timeStr: String): String {
         if (timeStr.isBlank()) return ""
         val timeParts = timeStr.split(":")
@@ -115,7 +116,6 @@ fun ScheduleInputDialog(
                     label = {
                         Text(
                             text = androidx.compose.ui.text.buildAnnotatedString {
-                                //*だけを赤色の太字にする
                                 withStyle(style = androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color.Red, fontWeight = FontWeight.Bold)) {
                                     append("*")
                                 }
@@ -172,13 +172,15 @@ fun ScheduleInputDialog(
                         onClick = onSelectTime,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(if (selectedTime.isEmpty()) stringResource(R.string.StartTime_enter) else convertTo12HourLabel(selectedTime))
+                        // 💡 変更：12時間表記に変換せず、24時間表記の値をそのまま表示するようにしました
+                        Text(if (selectedTime.isEmpty()) stringResource(R.string.StartTime_enter) else selectedTime)
                     }
                     Button(
                         onClick = onSelectEndTime,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(if (selectedEndTime.isEmpty()) stringResource(R.string.EndTime_enter) else convertTo12HourLabel(selectedEndTime))
+                        // 💡 変更：12時間表記に変換せず、24時間表記の値をそのまま表示するようにしました
+                        Text(if (selectedEndTime.isEmpty()) stringResource(R.string.EndTime_enter) else selectedEndTime)
                     }
                 }
 

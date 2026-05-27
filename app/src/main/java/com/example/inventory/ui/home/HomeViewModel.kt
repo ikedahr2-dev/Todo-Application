@@ -278,7 +278,7 @@ class HomeViewModel(
 
             if (addedPercentTotal != 0) {
                 val currentStored = _uiState.value.waterStoredPercent
-                val newWaterPercent = (currentStored + addedPercentTotal).coerceAtLeast(0)
+                val newWaterPercent = (currentStored + addedPercentTotal).coerceIn(0, 2400)
                 saveWaterToDevice(newWaterPercent)
                 _uiState.update { it.copy(waterStoredPercent = newWaterPercent) }
             }
@@ -348,8 +348,9 @@ class HomeViewModel(
 
     fun updateWaterStoredPercent(newPercent: Int) {
         viewModelScope.launch {
-            saveWaterToDevice(newPercent)
-            _uiState.update { it.copy(waterStoredPercent = newPercent) }
+            val boundedPercent = newPercent.coerceIn(0, 2400)
+            saveWaterToDevice(boundedPercent)
+            _uiState.update { it.copy(waterStoredPercent = boundedPercent) }
         }
     }
 
