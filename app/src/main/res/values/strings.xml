@@ -24,7 +24,7 @@
     <string name="no_item_description">予定はありません</string>
     <string name="no_item_OK">OK</string>
     <string name="cancel">キャンセル</string>
-    <string name="stay_schedule">*予定を入力してください</string>
+    <string name="stay_schedule">予定を入力してください</string>
     <string name="all_stay_schedule">予定を入力する</string>
     <string name="schedule_enter">予定</string>
     <string name="enter">決定</string>

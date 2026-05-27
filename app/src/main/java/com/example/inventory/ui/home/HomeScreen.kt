@@ -84,6 +84,8 @@ fun HomeScreen(
         while (true) {
             delay(1000 * 5)
             currentTimeMillis = System.currentTimeMillis()
+            // 💡 追記：時間経過による自動通知イベント完了などを見越して、5秒ごとに水分逆算を走らせる
+            viewModel.calculateWaterFromCompletedTasks()
         }
     }
 
@@ -98,7 +100,6 @@ fun HomeScreen(
     var selectedTime by remember { mutableStateOf("") }
     var selectedEndTime by remember { mutableStateOf("") }
 
-    // 💡 0: リスト, 1: カレンダー, 2: タイムライン, 3: ゲーム
     var currentScreenMode by remember { mutableStateOf(0) }
 
     val selectedFilterCategory = uiState.selectedFilterCategory
@@ -194,7 +195,6 @@ fun HomeScreen(
                     }
                 }
                 3 -> {
-                    // 💡 別ファイル（GameScreen.kt）にあるGameScreenを呼び出します
                     Box(modifier = Modifier.padding(innerPadding)) {
                         GameScreen()
                     }
@@ -425,7 +425,21 @@ fun HomeScreen(
         AlertDialog(
             onDismissRequest = { schedulePendingCheck = null },
             title = { Text(titleText) },
-            text = { Text(bodyText) },
+            text = {
+                Column {
+                    Text(bodyText)
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 注意書きを赤文字・太字で追加
+                    Text(
+                        text = "⚠️1度チェックをつけると取り消しできません",
+                        color = Color.Red,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            },
             confirmButton = {
                 Button(
                     onClick = {
@@ -498,8 +512,6 @@ fun HomeScreen(
         )
     }
 }
-
-// 💡 解決：古い GameScreen(){} 記述はここにありません。綺麗に消去されました！
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -597,6 +609,7 @@ private fun ScheduleItemRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
+            //  1つ目：開始チェックボックス（一度ONになったら外せないようロック）
             Checkbox(
                 checked = isVisualCompleted,
                 onCheckedChange = { isChecked ->
@@ -606,10 +619,12 @@ private fun ScheduleItemRow(
                         viewModel.toggleScheduleStatus(schedule, isChecked)
                     }
                 },
+                enabled = !isVisualCompleted, // チェックが入っているなら無効化
                 modifier = Modifier.padding(end = 4.dp),
                 colors = CheckboxDefaults.colors()
             )
 
+            // 2つ目：終了チェックボックス（一度ONになったら外せないようロック）
             Checkbox(
                 checked = schedule.isEndCompleted,
                 onCheckedChange = { isChecked ->
@@ -619,6 +634,7 @@ private fun ScheduleItemRow(
                         viewModel.toggleScheduleEndStatus(schedule, isChecked)
                     }
                 },
+                enabled = !schedule.isEndCompleted, // チェックが入っているなら無効化
                 modifier = Modifier.padding(end = 8.dp).size(28.dp),
                 colors = CheckboxDefaults.colors(
                     checkedColor = MaterialTheme.colorScheme.secondary,

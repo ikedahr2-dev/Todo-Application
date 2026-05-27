@@ -457,7 +457,21 @@ fun TimelineScreen(
         AlertDialog(
             onDismissRequest = { schedulePendingCheck = null },
             title = { Text(titleText) },
-            text = { Text(bodyText) },
+            text = {
+                Column {
+                    Text(bodyText)
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 注意書きを赤文字・太字で追加
+                    Text(
+                        text = "⚠️1度チェックをつけると取り消しできません",
+                        color = Color.Red,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            },
             confirmButton = {
                 Button(
                     onClick = {

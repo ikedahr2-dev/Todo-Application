@@ -23,9 +23,10 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 
-// スケジュール入力・編集を行うポップアップダイアログ
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleInputDialog(
@@ -43,22 +44,17 @@ fun ScheduleInputDialog(
     categories: List<String>,
     initialText: String = "",
     initialDetail: String = "",
-    // 開始通知用の初期分数（デフォルトは5分）
     initialReminderMinutes: Int = 5
 ) {
 
-    // タイトルとメモの入力を管理する状態
     var text by remember(initialText) { mutableStateOf(initialText) }
     var detail by remember(initialDetail) { mutableStateOf(initialDetail) }
 
-    // 💡 修正：もし保存されたデータや引数に「9999」が入ってきてしまっても、画面上は強制的に「5分前」として扱う防衛策
     val safeInitialMinutes = if (initialReminderMinutes == 9999 || initialReminderMinutes < -1) 5 else initialReminderMinutes
     var selectedReminderMinutes by remember(safeInitialMinutes) { mutableStateOf(safeInitialMinutes) }
 
-    // エラーメッセージの表示状態を管理するフラグ
     var showError by remember { mutableStateOf(false) }
 
-    // 24時間表記を「午前/午後 XX:XX」の形式に変換するダイアログ内ヘルパー関数
     fun convertTo12HourLabel(timeStr: String): String {
         if (timeStr.isBlank()) return ""
         val timeParts = timeStr.split(":")
@@ -73,30 +69,24 @@ fun ScheduleInputDialog(
         return "$amPmSystem${String.format("%02d", displayHour)}:$minute"
     }
 
-    // 終了時刻が開始時刻よりも前（または同じ）になっていないか判定するフラグ
     val isTimeInvalid = selectedTime.isNotBlank() &&
             selectedEndTime.isNotBlank() &&
             selectedEndTime <= selectedTime
 
-    // すべての必須項目（タイトル、日付、開始、終了）が埋まっているかチェック
     val isFormFilled = text.isNotBlank() &&
             selectedDate.isNotBlank() &&
             selectedTime.isNotBlank() &&
             selectedEndTime.isNotBlank()
 
-    // フォーム全体が有効か（正しく入力され、かつ時間の逆転がないか）
     val isFormValid = isFormFilled && !isTimeInvalid
 
     AlertDialog(
         onDismissRequest = { },
-        // 右下の「確定（保存）」ボタン
         confirmButton = {
             Button(
                 onClick = {
                     if (isFormValid) {
-                        // 💡 保存される時も、もし9999なら5分に強制安全変換してViewModelに渡します
                         val finalMinutes = if (selectedReminderMinutes == 9999) 5 else selectedReminderMinutes
-                        // 末尾のパラメーター（0）は endReminderMinutes として引き渡されます
                         onSave(text, selectedDate, selectedTime, selectedEndTime, selectedCategory, detail, finalMinutes, 0)
                         onDismiss()
                     } else {
@@ -105,17 +95,15 @@ fun ScheduleInputDialog(
                 }
             ) { Text(stringResource(R.string.enter)) }
         },
-        // 左下のキャンセルボタン
         dismissButton = {
             Row {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             }
         },
-        // ダイアログの中身（入力フォーム一覧）
         text = {
             Column {
                 var categoryExpanded by remember { mutableStateOf(false) }
-                var reminderExpanded by remember { mutableStateOf(false) } // 開始通知用
+                var reminderExpanded by remember { mutableStateOf(false) }
 
                 // スケジュール名入力欄
                 OutlinedTextField(
@@ -124,7 +112,18 @@ fun ScheduleInputDialog(
                         text = it
                         if (isFormValid) showError = false
                     },
-                    label = { Text(stringResource(R.string.stay_schedule)) }
+                    label = {
+                        Text(
+                            text = androidx.compose.ui.text.buildAnnotatedString {
+                                //*だけを赤色の太字にする
+                                withStyle(style = androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color.Red, fontWeight = FontWeight.Bold)) {
+                                    append("*")
+                                }
+                                append(stringResource(R.string.stay_schedule))
+                            }
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 // メモ入力欄
@@ -138,7 +137,16 @@ fun ScheduleInputDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // ----- 日付選択 -----
-                Text(text = "*予定日", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    text = androidx.compose.ui.text.buildAnnotatedString {
+                        withStyle(style = androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color.Red, fontWeight = FontWeight.Bold)) {
+                            append("*")
+                        }
+                        append("予定日")
+                    },
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
                 Button(onClick = onSelectDate, modifier = Modifier.fillMaxWidth()) {
                     Text(if (selectedDate.isEmpty()) stringResource(R.string.date_enter) else selectedDate)
                 }
@@ -146,7 +154,16 @@ fun ScheduleInputDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // ----- 時間設定（開始・終了） -----
-                Text(text = "*時間設定", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    text = androidx.compose.ui.text.buildAnnotatedString {
+                        withStyle(style = androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color.Red, fontWeight = FontWeight.Bold)) {
+                            append("*")
+                        }
+                        append("時間設定")
+                    },
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -170,7 +187,6 @@ fun ScheduleInputDialog(
                 // ----- 開始時間の通知設定 -----
                 Text(text = "開始時間の通知設定", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
 
-                // 💡 修正：ラベル表示からも 9999 の可能性を排除
                 val reminderLabel = when (selectedReminderMinutes) {
                     -1 -> "通知なし"
                     0 -> "時間ピッタリ"
@@ -226,7 +242,7 @@ fun ScheduleInputDialog(
                     onExpandedChange = { categoryExpanded = !categoryExpanded }
                 ) {
                     OutlinedTextField(
-                        modifier = Modifier.menuAnchor(),
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
                         readOnly = true,
                         value = selectedCategory,
                         onValueChange = {},
