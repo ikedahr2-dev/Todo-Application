@@ -37,53 +37,66 @@ fun GameScreen(
     //val waterStoredPercent = 1000
     val waterStoredPercent = 100
     //val waterStoredPercent = 50
-    //val waterStoredPercent = 0
 
-    //現在のレベルを管理する状態変数 (0: 初期状態, 1: Lv1, 2: Lv2)
+    //現在のレベルを管理する状態変数
     var currentLevel by remember { mutableStateOf(0) }
 
     //現在のレベルになってから「追加で水をあげた回数」を記録する
     var givenWaterCount by remember { mutableStateOf(0) }
 
-    //レベル6に達成した際に画像を切り替えの選択をする
-    var showAlternativeImage by remember { mutableStateOf(false) }
+    //高さを3段階で管理する状態変数 (0: 地上, 1: 上空, 2: 宇宙)
+    var currentHeightLayer by remember { mutableStateOf(0) }
 
-    //現在のレベルに応じて、次の進化に必要な回数を自動で切り替える
     //現在のレベルに応じて、次の進化に必要な回数を自動で切り替える
     val totalWateringRequired = when (currentLevel) {
-        0 -> 1    //Lv.0の時は3回（300%）でLv.1へ
-        1 -> 1    //Lv.1の時は5回（500%）でLv.2へ
-        2 -> 1   //Lv.2の時は12回（1200%）でLv.3へ
-        3 -> 1   //Lv.3の時は20回（2000%）でLv.4へ
-        4 -> 1   //Lv.4の時は35回（3500%）でLv.5へ
-        5 -> 1   //Lv.5の時は53回（5300%）でLv.6へ
-        6 -> 1   //Lv.6(上空)の時は90回(9000%)でLv.7へ
-        else -> 0 //最大レベルの時はそれ以上必要なし
+        0 -> 1    //Lv.0 -> Lv.1
+        1 -> 1    //Lv.1 -> Lv.2
+        2 -> 1    //Lv.2 -> Lv.3
+        3 -> 1    //Lv.3 -> Lv.4
+        4 -> 1    //Lv.4 -> Lv.5
+        5 -> 1    //Lv.5 -> Lv.6
+        6 -> 1    //Lv.6 -> Lv.7
+        7 -> 1    //Lv.7 -> Lv.8
+        8 -> 1    //Lv.8 -> Lv.9
+        9 -> 1    //Lv.9 -> Lv.10
+        else -> 0
     }
 
-    //レベルおよび画面切り替えに応じた背景画像切り替えロジック
-    val currentImageResId = if (showAlternativeImage) {
-        //上空（切り替え先）のレベル別画像
-        when (currentLevel) {
-            6 -> R.drawable.game_tree_sky_6   //Lv.6の上空画像
-            7 -> R.drawable.game_tree_sky_7   //Lv.7の上空画像
-            else -> R.drawable.game_tree_sky_6 //Lv.6の上空画像
+    //3段階の高さレイア（地上・上空・宇宙）に応じた画像切り替えロジック
+    val currentImageResId = when (currentHeightLayer) {
+        1 -> {
+            when (currentLevel) {
+                6 -> R.drawable.game_tree_sky_6
+                7 -> R.drawable.game_tree_sky_7
+                8 -> R.drawable.game_tree_sky_8
+                else -> R.drawable.game_tree_sky_9_over
+            }
         }
-    } else {
-        //地上（いつもの画面）のレベル別画像
-        when (currentLevel) {
-            1 -> R.drawable.game_tree_lv_1
-            2 -> R.drawable.game_tree_lv_2
-            3 -> R.drawable.game_tree_lv_3
-            4 -> R.drawable.game_tree_lv_4
-            5 -> R.drawable.game_tree_lv_5
-            6 -> R.drawable.game_tree_lv_6 //地上側は大きな木のまま固定
-            7 -> R.drawable.game_tree_lv_2 //地上側は大きな木のまま固定
-            else -> R.drawable.game_tree_lv_0
+        2 -> {
+            when (currentLevel) {
+                8 -> R.drawable.game_tree_earth_8
+                9 -> R.drawable.game_tree_earth_9
+                10 -> R.drawable.game_tree_earth_10
+                else -> R.drawable.game_tree_earth_8
+            }
+        }
+        else -> {
+            when (currentLevel) {
+                1 -> R.drawable.game_tree_lv_1
+                2 -> R.drawable.game_tree_lv_2
+                3 -> R.drawable.game_tree_lv_3
+                4 -> R.drawable.game_tree_lv_4
+                5 -> R.drawable.game_tree_lv_5
+                6 -> R.drawable.game_tree_lv_6
+                7 -> R.drawable.game_tree_lv_7_over
+                8 -> R.drawable.game_tree_lv_7_over
+                9 -> R.drawable.game_tree_lv_7_over
+                10 -> R.drawable.game_tree_lv_7_over
+                else -> R.drawable.game_tree_lv_0
+            }
         }
     }
 
-    //ゲージのアニメーション用(2400%を上限に設定)
     val animatedProgress by animateFloatAsState(
         targetValue = (waterStoredPercent / 2400f).coerceIn(0f, 10f),
         label = "WaterGaugeAnimation"
@@ -97,19 +110,18 @@ fun GameScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .clickable {
-                    //最大レベル(8)未満で、水が100%以上あるときタップ可能
-                    if (currentLevel < 7 && waterStoredPercent >= 100) {
+                    if (currentLevel < 10 && waterStoredPercent >= 100) {
                         viewModel.updateWaterStoredPercent(waterStoredPercent - 100)
                         givenWaterCount++
 
-                        //目標回数に達したらレベルアップ
                         if (givenWaterCount >= totalWateringRequired) {
                             currentLevel++
-                            givenWaterCount = 0 //カウントをリセットして次の進化へ
+                            givenWaterCount = 0
 
-                            //レベル6になった瞬間、自動で「上空」に画面を切り替えて気づきやすくする演出
                             if (currentLevel == 6) {
-                                showAlternativeImage = true
+                                currentHeightLayer = 1
+                            } else if (currentLevel == 8) {
+                                currentHeightLayer = 2
                             }
                         }
                     }
@@ -117,7 +129,7 @@ fun GameScreen(
             contentScale = ContentScale.Crop
         )
 
-        //上部：水やりステータスおよび成長ステータスUIパネル
+        //上部：UIパネル
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -135,7 +147,6 @@ fun GameScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            //水分量ゲージ
             LinearProgressIndicator(
                 progress = animatedProgress,
                 modifier = Modifier
@@ -148,69 +159,114 @@ fun GameScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            //下部：成長メッセージの表示制御
             val msgColor = Color(0xFFFFEB3B)
-            val msgModifier = Modifier.fillMaxWidth()
             val msgAlign = androidx.compose.ui.text.style.TextAlign.Center
 
             when (currentLevel) {
-                0 -> Text(text = if (waterStoredPercent < 100) "タスクを完了させて水を貯めましょう！"
-                                 else "水をあげて芽を咲かせましょう！", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
-
-                1 -> Text(text = if (waterStoredPercent < 100) "水をあげて芽を咲かせましょう！"
-                                 else "✨芽が生えてきました！Lv.1！🌱", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
-
-                2 -> Text(text = if (waterStoredPercent < 100) "✨芽が生えてきました！Lv.1！🌱"
-                                 else "✨芽が成長しました！Lv.2！🌱", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
-
-                3 -> Text(text = if (waterStoredPercent < 100) "✨芽が成長しました！Lv.2！🌱"
-                                 else "✨木に成長しました！Lv.3！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
-
-                4 -> Text(text = if (waterStoredPercent < 100) "✨木に成長しました！Lv.3！🌳"
-                                 else "✨木が成長しました！Lv.4！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
-
-                5 -> Text(text = if (waterStoredPercent < 100) "✨木に成長しました！Lv.4！🌳"
-                                 else "✨木が成長しました！Lv.5！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
-
+                0 -> Text(text = if (waterStoredPercent < 100) "タスクを完了させて水を貯めましょう！" else "水をあげて芽を咲かせましょう！", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+                1 -> Text(text = if (waterStoredPercent < 100) "水をあげて芽を咲かせましょう！" else "✨芽が生えてきました！Lv.1！🌱", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+                2 -> Text(text = if (waterStoredPercent < 100) "✨芽が生えてきました！Lv.1！🌱" else "✨芽が成長しました！Lv.2！🌱", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+                3 -> Text(text = if (waterStoredPercent < 100) "✨芽が成長しました！Lv.2！🌱" else "✨木に成長しました！Lv.3！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+                4 -> Text(text = if (waterStoredPercent < 100) "✨木に成長しました！Lv.3！🌳" else "✨木が成長しました！Lv.4！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+                5 -> Text(text = if (waterStoredPercent < 100) "✨木に成長しました！Lv.4！🌳" else "✨木が成長しました！Lv.5！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
                 6 -> {
-                    //レベル6
                     Text(
-                        text = if (showAlternativeImage) "☁️ 上空へ到達！！Lv.6"
-                        else "✨木が成長しました！Lv.6！🌳",
+                        text = if (currentHeightLayer == 1) "☁️ 上空へ到達！！Lv.6" else "✨木が成長しました！Lv.6！🌳",
                         color = msgColor, fontSize = 13.sp, textAlign = msgAlign
                     )
                 }
                 7 -> {
-                    //レベル7
                     Text(
-                        text = if (showAlternativeImage) "✨更に成長しました！Lv.7"
-                        else "✨木が成長しました！Lv.7！🌳",
+                        text = if (currentHeightLayer == 1) "☁️ 雲の上をぐんぐん突き進む！Lv.7" else "✨木が更に成長しました！Lv.7🌳",
                         color = msgColor, fontSize = 13.sp, textAlign = msgAlign
                     )
+                }
+                8 -> {
+                    val lvl8Msg = when (currentHeightLayer) {
+                        2 -> "🚀 ついに宇宙空間へ突入！！！Lv.8"
+                        1 -> "☁️ 大気圏突破まであと少し！Lv.8"
+                        else -> "✨木が地上を覆うほど成長しました！Lv.8🌳"
+                    }
+                    Text(text = lvl8Msg, color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+                }
+                9 -> {
+                    val lvl9Msg = when (currentHeightLayer) {
+                        2 -> "🌈 成層圏へ到達！！！Lv.9"
+                        1 -> "☁️ 星に手が届きそう！Lv.9"
+                        else -> "✨大木へ成長しました！Lv.9🌳"
+                    }
+                    Text(text = lvl9Msg, color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+                }
+                10 -> {
+                    val lvl9Msg = when (currentHeightLayer) {
+                        2 -> "🌌 宇宙の果てへ進化完了！！！Lv.10"
+                        1 -> "☁️ 星を見下ろすはるか上空！Lv.10"
+                        else -> "✨伝説の巨木へと覚醒しました！Lv.10🌳"
+                    }
+                    Text(text = lvl9Msg, color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
                 }
             }
         }
 
-        //レベル6、7に到達している間は、いつでも地上と上空を行き来できるボタンを表示
+        //階層切り替えボタンエリア（縦に並ぶ形に対応）
         if (currentLevel >= 6) {
-            Button(
-                onClick = { showAlternativeImage = !showAlternativeImage },
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 24.dp, bottom = 32.dp)
-                    .size(64.dp),
-                shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                contentPadding = PaddingValues(0.dp)
+                    .padding(end = 24.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp), // ボタン同士の隙間
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = if (showAlternativeImage) "地上" else "上空",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                //─── 【パターンA】現在「上空（レイヤー1）」にいるとき（上下2つのボタンを表示） ───
+                if (currentHeightLayer == 1) {
+                    //①上に行く「宇宙」ボタン（※レベル8以上のときだけ表示）
+                    if (currentLevel >= 8) {
+                        Button(
+                            onClick = { currentHeightLayer = 2 },
+                            modifier = Modifier.size(64.dp),
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(text = "宇宙", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    //②下に行く「地上」ボタン
+                    Button(
+                        onClick = { currentHeightLayer = 0 },
+                        modifier = Modifier.size(64.dp),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(text = "地上", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                //─── 【パターンB】現在「地上（レイヤー0）」または「宇宙（レイヤー2）」にいるとき ───
+                else {
+                    Button(
+                        onClick = {
+                            //地上にいるなら上空(1)へ、宇宙にいるなら上空(1)へ戻る
+                            currentHeightLayer = 1
+                        },
+                        modifier = Modifier.size(64.dp),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(text = "上空", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }

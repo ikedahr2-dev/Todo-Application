@@ -25,7 +25,6 @@ data class HomeUiState(
     val selectedEditCategory: String = "",
     val searchQuery: String = "",
     val categoriesList: List<String> = listOf("すべて", "仕事", "プライベート", "その他"),
-    //　現在蓄えられている水分量の状態
     val waterStoredPercent: Int = 0
 )
 
@@ -59,7 +58,6 @@ class HomeViewModel(
     private var _editingItem = mutableStateOf<Schedule?>(null)
     val editingItem: State<Schedule?> = _editingItem
 
-    // 変更：リアルタイム用を廃止し、逆算処理が完了したタスクIDを記録するSharedPreferencesを用意
     private val processedTasksPrefs = application.getSharedPreferences("game_processed_tasks", Context.MODE_PRIVATE)
 
     init {
@@ -141,7 +139,6 @@ class HomeViewModel(
         viewModelScope.launch {
             val targetEndTime = endTime.ifBlank { time }
             val taskTimeMillis = convertDateTimeToMillis(date, targetEndTime) ?: System.currentTimeMillis()
-
             val finalReminderMinutes = if (reminderMinutes == 9999) 5 else reminderMinutes
 
             val newSchedule = Schedule(
@@ -152,7 +149,8 @@ class HomeViewModel(
                 category = category,
                 detail = detail,
                 data = taskTimeMillis,
-                reminderMinutes = finalReminderMinutes
+                reminderMinutes = finalReminderMinutes,
+                actualStartMillis = null // 新規作成時は未計測
             )
             schedulesRepository.insertSchedule(newSchedule)
 
@@ -164,7 +162,6 @@ class HomeViewModel(
                 if (alarmTimeMillis != null && alarmTimeMillis > System.currentTimeMillis()) {
                     scheduleTodoAlarm(context = application.applicationContext, taskId = savedItem.id, taskTitle = text, taskTimeMillis = alarmTimeMillis, reminderMinutes = finalReminderMinutes)
                 }
-
                 if (endTime.isNotBlank()) {
                     val endAlarmTimeMillis = convertDateTimeToMillis(date, endTime)
                     if (endAlarmTimeMillis != null && endAlarmTimeMillis > System.currentTimeMillis()) {
@@ -172,7 +169,6 @@ class HomeViewModel(
                     }
                 }
             }
-
             onDismissInputBox()
             refreshOngoingNotification()
         }
@@ -182,7 +178,6 @@ class HomeViewModel(
         viewModelScope.launch {
             val targetEndTime = newEndTime.ifBlank { newTime }
             val taskTimeMillis = convertDateTimeToMillis(newDate, targetEndTime) ?: System.currentTimeMillis()
-
             val finalReminderMinutes = if (newReminderMinutes == 9999) 5 else newReminderMinutes
 
             val updatedSchedule = schedule.copy(
@@ -203,14 +198,12 @@ class HomeViewModel(
             if (alarmTimeMillis != null && alarmTimeMillis > System.currentTimeMillis()) {
                 scheduleTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = newText, taskTimeMillis = alarmTimeMillis, reminderMinutes = finalReminderMinutes)
             }
-
             if (newEndTime.isNotBlank()) {
                 val endAlarmTimeMillis = convertDateTimeToMillis(newDate, newEndTime)
                 if (endAlarmTimeMillis != null && endAlarmTimeMillis > System.currentTimeMillis()) {
                     scheduleTodoEndAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = newText, endTimeMillis = endAlarmTimeMillis)
                 }
             }
-
             onDismissInputBox()
             refreshOngoingNotification()
         }
@@ -233,39 +226,43 @@ class HomeViewModel(
         }
     }
 
-    // 差し替え：2つのチェックボックスが埋まったタスクから、開始〜終了時間を逆算して水分に変換する関数
+    // バックアップ用＆自動完了タスクの回収ロジック
     fun calculateWaterFromCompletedTasks() {
         viewModelScope.launch {
             val allSchedules = schedulesRepository.getAllSchedulesStream().first()
             var addedPercentTotal = 0
+            val currentTime = System.currentTimeMillis()
 
             allSchedules.forEach { schedule ->
-                // 開始チェック(isCompleted) と 終了チェック(isEndCompleted) が両方ともONの場合
-                if (schedule.isCompleted && schedule.isEndCompleted) {
-                    val key = "task_done_${schedule.id}"
-                    val isAlreadyProcessed = processedTasksPrefs.getBoolean(key, false)
+                val key = "task_done_${schedule.id}"
+                val isAlreadyProcessed = processedTasksPrefs.getBoolean(key, false)
 
-                    // まだ水分加算の計算をしていないタスクであれば処理を実行
+                val taskEndTimeMillis = convertDateTimeToMillis(schedule.date, schedule.endTime.ifBlank { schedule.time })
+                val isPastEndTime = taskEndTimeMillis != null && currentTime >= taskEndTimeMillis
+
+                // 手動で両方埋まった、または時間が過ぎて自動的に完了した未チャージタスク
+                if ((schedule.isCompleted && schedule.isEndCompleted) || (isPastEndTime && !isAlreadyProcessed)) {
                     if (!isAlreadyProcessed) {
-                        val startMillis = convertDateTimeToMillis(schedule.date, schedule.time)
-                        val endMillis = convertDateTimeToMillis(schedule.date, schedule.endTime ?: "")
+                        // 開始時刻の特定（フライングロックされた開始時間、または通常の予定開始時間）
+                        val startMillis = schedule.actualStartMillis
+                            ?: convertDateTimeToMillis(schedule.date, schedule.time)
+
+                        // 終了時刻の特定（手動チェックなら現在時刻、時間超過自動完了なら予定終了時刻）
+                        val endMillis = if (schedule.isEndCompleted) currentTime else taskEndTimeMillis
 
                         if (startMillis != null && endMillis != null && endMillis > startMillis) {
                             val diffMinutes = (endMillis - startMillis) / (1000 * 60)
-                            // 1時間(60分)を100%とした比率で水分量を逆算
                             val chargedPercent = ((diffMinutes.toDouble() / 60.0) * 100.0).toInt()
                             addedPercentTotal += chargedPercent
                         }
-                        // 二重加算を防止するために処理済みフラグを保存
                         processedTasksPrefs.edit().putBoolean(key, true).apply()
                     }
                 }
-                // もしユーザーが後からどちらかのチェックを外した場合は、加算分を引いてキャッシュをリセット
-                else {
-                    val key = "task_done_${schedule.id}"
+                // チェックボックスが外された場合の減算処理
+                else if (!schedule.isCompleted || !schedule.isEndCompleted) {
                     if (processedTasksPrefs.getBoolean(key, false)) {
-                        val startMillis = convertDateTimeToMillis(schedule.date, schedule.time)
-                        val endMillis = convertDateTimeToMillis(schedule.date, schedule.endTime ?: "")
+                        val startMillis = schedule.actualStartMillis ?: convertDateTimeToMillis(schedule.date, schedule.time)
+                        val endMillis = convertDateTimeToMillis(schedule.date, schedule.endTime.ifBlank { schedule.time })
                         if (startMillis != null && endMillis != null && endMillis > startMillis) {
                             val diffMinutes = (endMillis - startMillis) / (1000 * 60)
                             val chargedPercent = ((diffMinutes.toDouble() / 60.0) * 100.0).toInt()
@@ -285,7 +282,6 @@ class HomeViewModel(
         }
     }
 
-    //　一括削除時はタスクデータを消去するだけで、水分はリアルタイムでチャージ済みのため加算は行いません
     fun deleteCompletedSchedules() {
         viewModelScope.launch {
             val allSchedules = schedulesRepository.getAllSchedulesStream().first()
@@ -296,15 +292,27 @@ class HomeViewModel(
                 cancelTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, reminderMinutes = schedule.reminderMinutes)
                 processedTasksPrefs.edit().remove("task_done_${schedule.id}").apply()
             }
-
             refreshOngoingNotification()
         }
     }
 
-    //　開始チェックボックス（1つ目）用
+    // 1つ目のチェックボックス（開始）の更新関数
     fun toggleScheduleStatus(schedule: Schedule, isChecked: Boolean) {
         viewModelScope.launch {
-            val updatedSchedule = schedule.copy(isCompleted = isChecked)
+            val currentTime = System.currentTimeMillis()
+            val planStartTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time) ?: currentTime
+
+            // 💡 どんなに早くチェックしても予定開始時刻(planStartTimeMillis)より前なら予定時刻をスタートとする（フライング防止）
+            val actualStart = if (isChecked) {
+                java.lang.Long.max(planStartTimeMillis, currentTime)
+            } else {
+                null
+            }
+
+            val updatedSchedule = schedule.copy(
+                isCompleted = isChecked,
+                actualStartMillis = actualStart
+            )
             schedulesRepository.updateSchedule(updatedSchedule)
 
             kotlinx.coroutines.delay(150)
@@ -313,13 +321,11 @@ class HomeViewModel(
                 cancelTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, reminderMinutes = schedule.reminderMinutes)
             } else {
                 val fallbackReminderMinutes = if (schedule.reminderMinutes == 9999) 5 else schedule.reminderMinutes
-
                 val alarmTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time)
                 if (alarmTimeMillis != null && alarmTimeMillis > System.currentTimeMillis()) {
                     scheduleTodoAlarm(context = application.applicationContext, taskId = schedule.id, taskTitle = schedule.text, taskTimeMillis = alarmTimeMillis, reminderMinutes = fallbackReminderMinutes)
                 }
-
-                val targetEndTime = schedule.endTime ?: ""
+                val targetEndTime = schedule.endTime
                 if (targetEndTime.isNotBlank()) {
                     val endAlarmTimeMillis = convertDateTimeToMillis(schedule.date, targetEndTime)
                     if (endAlarmTimeMillis != null && endAlarmTimeMillis > System.currentTimeMillis()) {
@@ -327,20 +333,46 @@ class HomeViewModel(
                     }
                 }
             }
-            // 状態変化時に逆算関数をキック
             calculateWaterFromCompletedTasks()
             refreshOngoingNotification()
         }
     }
 
-    //　終了チェックボックス（2つ目）専用の更新関数
+    // 2つ目のチェックボックス（終了）の更新関数
     fun toggleScheduleEndStatus(schedule: Schedule, isChecked: Boolean) {
         viewModelScope.launch {
+            val currentTime = System.currentTimeMillis()
+
             val updatedSchedule = schedule.copy(isEndCompleted = isChecked)
             schedulesRepository.updateSchedule(updatedSchedule)
 
+            // 💡 リアルタイムでのチャージ処理
+            if (isChecked) {
+                val key = "task_done_${schedule.id}"
+                val isAlreadyProcessed = processedTasksPrefs.getBoolean(key, false)
+
+                if (!isAlreadyProcessed) {
+                    val startMillis = schedule.actualStartMillis
+                        ?: convertDateTimeToMillis(schedule.date, schedule.time)
+                        ?: currentTime
+
+                    val diffMinutes = ((currentTime - startMillis) / (1000 * 60)).coerceAtLeast(0)
+                    val chargedPercent = ((diffMinutes.toDouble() / 60.0) * 100.0).toInt()
+
+                    if (chargedPercent > 0) {
+                        val currentStored = _uiState.value.waterStoredPercent
+                        val newWaterPercent = (currentStored + chargedPercent).coerceIn(0, 2400)
+                        saveWaterToDevice(newWaterPercent)
+                        _uiState.update { it.copy(waterStoredPercent = newWaterPercent) }
+                        processedTasksPrefs.edit().putBoolean(key, true).apply()
+                    }
+                }
+            } else {
+                val key = "task_done_${schedule.id}"
+                processedTasksPrefs.edit().remove(key).apply()
+            }
+
             kotlinx.coroutines.delay(150)
-            // 状態変化時に逆算関数をキック
             calculateWaterFromCompletedTasks()
             refreshOngoingNotification()
         }
