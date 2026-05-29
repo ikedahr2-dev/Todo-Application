@@ -159,7 +159,7 @@ class HomeViewModel(
                 detail = detail,
                 data = taskTimeMillis,
                 reminderMinutes = finalReminderMinutes,
-                actualStartMillis = null // 新規作成時は未計測
+                actualStartMillis = null
             )
             schedulesRepository.insertSchedule(newSchedule)
 
@@ -235,7 +235,6 @@ class HomeViewModel(
         }
     }
 
-    // バックアップ用＆自動完了タスクの回収ロジック
     fun calculateWaterFromCompletedTasks() {
         viewModelScope.launch {
             val allSchedules = schedulesRepository.getAllSchedulesStream().first()
@@ -249,14 +248,11 @@ class HomeViewModel(
                 val taskEndTimeMillis = convertDateTimeToMillis(schedule.date, schedule.endTime.ifBlank { schedule.time })
                 val isPastEndTime = taskEndTimeMillis != null && currentTime >= taskEndTimeMillis
 
-                // 手動で両方埋まった、または時間が過ぎて自動的に完了した未チャージタスク
                 if ((schedule.isCompleted && schedule.isEndCompleted) || (isPastEndTime && !isAlreadyProcessed)) {
                     if (!isAlreadyProcessed) {
-                        // 開始時刻の特定（フライングロックされた開始時間、または通常の予定開始時間）
                         val startMillis = schedule.actualStartMillis
                             ?: convertDateTimeToMillis(schedule.date, schedule.time)
 
-                        // 終了時刻の特定（手動チェックなら現在時刻、時間超過自動完了なら予定終了時刻）
                         val endMillis = if (schedule.isEndCompleted) currentTime else taskEndTimeMillis
 
                         if (startMillis != null && endMillis != null && endMillis > startMillis) {
@@ -267,7 +263,6 @@ class HomeViewModel(
                         processedTasksPrefs.edit().putBoolean(key, true).apply()
                     }
                 }
-                // チェックボックスが外された場合の減算処理
                 else if (!schedule.isCompleted || !schedule.isEndCompleted) {
                     if (processedTasksPrefs.getBoolean(key, false)) {
                         val startMillis = schedule.actualStartMillis ?: convertDateTimeToMillis(schedule.date, schedule.time)
@@ -305,13 +300,11 @@ class HomeViewModel(
         }
     }
 
-    // 1つ目のチェックボックス（開始）の更新関数
     fun toggleScheduleStatus(schedule: Schedule, isChecked: Boolean) {
         viewModelScope.launch {
             val currentTime = System.currentTimeMillis()
             val planStartTimeMillis = convertDateTimeToMillis(schedule.date, schedule.time) ?: currentTime
 
-            // 💡 どんなに早くチェックしても予定開始時刻(planStartTimeMillis)より前なら予定時刻をスタートとする（フライング防止）
             val actualStart = if (isChecked) {
                 java.lang.Long.max(planStartTimeMillis, currentTime)
             } else {
@@ -347,7 +340,6 @@ class HomeViewModel(
         }
     }
 
-    // 2つ目のチェックボックス（終了）の更新関数
     fun toggleScheduleEndStatus(schedule: Schedule, isChecked: Boolean) {
         viewModelScope.launch {
             val currentTime = System.currentTimeMillis()
@@ -355,7 +347,6 @@ class HomeViewModel(
             val updatedSchedule = schedule.copy(isEndCompleted = isChecked)
             schedulesRepository.updateSchedule(updatedSchedule)
 
-            // 💡 リアルタイムでのチャージ処理
             if (isChecked) {
                 val key = "task_done_${schedule.id}"
                 val isAlreadyProcessed = processedTasksPrefs.getBoolean(key, false)
@@ -366,11 +357,18 @@ class HomeViewModel(
                         ?: currentTime
 
                     val diffMinutes = ((currentTime - startMillis) / (1000 * 60)).coerceAtLeast(0)
-                    val chargedPercent = ((diffMinutes.toDouble() / 60.0) * 100.0).toInt()
+                    val cardWaterPercent = ((diffMinutes.toDouble() / 60.0) * 100.0).toInt()
 
-                    if (chargedPercent > 0) {
+                    if (cardWaterPercent > 0) {
+                        // ✨ 修正：RoomのGameテーブル側にも水分を安全にチャージ
+                        val currentGame = gameUiState.value
+                        if (currentGame != null) {
+                            val newWater = (currentGame.waterStoredPercent + cardWaterPercent).coerceIn(0, 2400)
+                            schedulesRepository.insertGameStatus(currentGame.copy(waterStoredPercent = newWater))
+                        }
+
                         val currentStored = _uiState.value.waterStoredPercent
-                        val newWaterPercent = (currentStored + chargedPercent).coerceIn(0, 2400)
+                        val newWaterPercent = (currentStored + cardWaterPercent).coerceIn(0, 2400)
                         saveWaterToDevice(newWaterPercent)
                         _uiState.update { it.copy(waterStoredPercent = newWaterPercent) }
                         processedTasksPrefs.edit().putBoolean(key, true).apply()
@@ -392,6 +390,12 @@ class HomeViewModel(
             val boundedPercent = newPercent.coerceIn(0, 2400)
             saveWaterToDevice(boundedPercent)
             _uiState.update { it.copy(waterStoredPercent = boundedPercent) }
+
+            // ✨ 修正：UI側の水分量操作とRoomDB側のゲーム水分量を同期
+            val currentGame = gameUiState.value
+            if (currentGame != null) {
+                schedulesRepository.insertGameStatus(currentGame.copy(waterStoredPercent = boundedPercent))
+            }
         }
     }
 
@@ -399,12 +403,12 @@ class HomeViewModel(
 
     companion object { private const val TIMEOUT_MILLIS = 5_000L }
 
-// ---------- Game ---------- //
+    // ---------- Game 育成システム ---------- //
     fun waterTree() {
         val currentGame = gameUiState.value
 
         viewModelScope.launch {
-            // データが無いときは、最初は「水0%」で初期登録
+            val now = System.currentTimeMillis()
             if (currentGame == null) {
                 schedulesRepository.insertGameStatus(
                     Game(
@@ -421,7 +425,7 @@ class HomeViewModel(
             val currentHeightLayer = currentGame.currentHeightLayer
             val currentLevel = currentGame.currentLevel
             val givenWaterCount = currentGame.givenWaterCount
-            val waterStoredPercent = currentGame.waterStoredPercent   // 【取得】蓄えた水
+            val waterStoredPercent = currentGame.waterStoredPercent
 
             if (waterStoredPercent >= 100 && currentLevel < 14) {
                 var newLevel = currentLevel
@@ -451,14 +455,32 @@ class HomeViewModel(
                         currentHeightLayer = newLayer
                     )
                 )
+                // ✨ 連動：古いSharedPref側の水分量表示もきっちり減算同期
+                saveWaterToDevice(waterStoredPercent - 100)
+                _uiState.update { it.copy(waterStoredPercent = waterStoredPercent - 100) }
             }
         }
     }
 
-    // GameScreenから移動した関数
     private fun getRequiredCount(level: Int): Int {
         return when (level) {
-            0 -> 3     //Lv.0 -> Lv.1
+            //テスト
+            0 -> 1   //Lv.0 -> Lv.1
+            1 -> 1   //Lv.1 -> Lv.2
+            2 -> 1   //Lv.2 -> Lv.3
+            3 -> 1   //Lv.3 -> Lv.4
+            4 -> 1   //Lv.4 -> Lv.5
+            5 -> 1   //Lv.5 -> Lv.6
+            6 -> 1   //Lv.6 -> Lv.7
+            7 -> 1   //Lv.7 -> Lv.8
+            8 -> 1   //Lv.8 -> Lv.9
+            9 -> 1   //Lv.9 -> Lv.10
+            10 -> 1  //Lv.10 -> Lv.11
+            11 -> 1  //Lv.11 -> Lv.12
+            12 -> 1  //Lv.12 -> Lv.13
+            13 -> 1  //Lv.13 -> Lv.14 (Max)
+
+            /*0 -> 3     //Lv.0 -> Lv.1
             1 -> 18    //Lv.1 -> Lv.2
             2 -> 39    //Lv.2 -> Lv.3
             3 -> 52    //Lv.3 -> Lv.4
@@ -471,20 +493,17 @@ class HomeViewModel(
             10 -> 630  //Lv.10 -> Lv.11
             11 -> 670  //Lv.11 -> Lv.12
             12 -> 852  //Lv.12 -> Lv.13
-            13 -> 1000 //Lv.13 -> Lv.14 (Max)
+            13 -> 1000 //Lv.13 -> Lv.14 (Max)*/
             else -> 0
         }
     }
 
     // ----- 階層管理 ----- //
     fun changeLayer(isUp: Boolean) {
-        // 現在のゲームデータを取得
         val currentGame = gameUiState.value ?: Game()
-        // 今いる位置の取得
         val currentLayer = currentGame.currentHeightLayer
 
         viewModelScope.launch {
-            // 階層ごとにcurrentHeightLayerだけを+-1して、DBに保存
             schedulesRepository.updateGameStatus(
                 currentGame.copy(
                     currentHeightLayer = if (isUp) currentLayer + 1 else currentLayer - 1
@@ -493,24 +512,19 @@ class HomeViewModel(
         }
     }
 
-    // ----- 木の初期化(水以外) ----- //
-
-    fun resetGameKeepWater() {
-        // 現在のゲームデータの取得
-        val currentGame = gameUiState.value ?: return // もしデータがなければ何もしない
-
-        // 現在の蓄えられた水の取得
+    // ----- 💡 仕様追加：木の初期リセット(水は保持) ----- //
+    fun resetTreeGame() {
+        val currentGame = gameUiState.value ?: return
         val currentWater = currentGame.waterStoredPercent
 
         viewModelScope.launch {
-            // idと水だけを引き継ぎ、それ以外を「0」に初期化してDBをUpdateする！
             schedulesRepository.insertGameStatus(
                 Game(
-                    id = 1,                            // idそのまま
-                    waterStoredPercent = currentWater, // 水そのまま
-                    currentLevel = 0,                  // レベル初期化
-                    givenWaterCount = 0,               // 水あげた回数初期化
-                    currentHeightLayer = 0             // 階層初期化
+                    id = 1,
+                    waterStoredPercent = currentWater, // 蓄えた水分は引き継ぐ
+                    currentLevel = 0,                  // 初期レベルにリセット
+                    givenWaterCount = 0,               // 水やり回数カウントリセット
+                    currentHeightLayer = 0             // 地上に戻る
                 )
             )
         }

@@ -60,7 +60,7 @@ fun GameScreen(
     // 🌟【変更】これも同じ理由でrememberを廃止してDB直結に。ボタンを押した時の増減関数はViewModelへ移動しました！
     val currentHeightLayer = gameData.currentHeightLayer
 
-    //現在のレベルに応じて、次の進化に必要な回数を自動で切り替える
+    /*現在のレベルに応じて、次の進化に必要な回数を自動で切り替える
     val totalWateringRequired = when (currentLevel) {
         0 -> 3     //Lv.0 -> Lv.1
         1 -> 18    //Lv.1 -> Lv.2
@@ -77,7 +77,7 @@ fun GameScreen(
         12 -> 852  //Lv.12 -> Lv.13
         13 -> 1000 //Lv.13 -> Lv.14 (Max)
         else -> 0
-    }
+    }*/
 
     //5段階の高さレイヤーに応じた画像切り替えロジック
     val currentImageResId = when (currentHeightLayer) {
@@ -294,6 +294,7 @@ fun GameScreen(
                     1 -> currentLevel >= 8  //上空からは、レベル8以上で「成層圏」が追加
                     2 -> currentLevel >= 10 //成層圏からは、レベル10以上で「外気圏」が追加
                     3 -> currentLevel >= 12 //外気圏からは、レベル12以上で「宇宙」が追加
+                    4 -> currentLevel >= 13
                     else -> false           //宇宙より上はない
                 }
 
@@ -303,12 +304,19 @@ fun GameScreen(
                         1 -> "成層圏"
                         2 -> "外気圏"
                         3 -> "宇宙"
+                        4 -> "リセット"
                         else -> ""
                     }
                     Button(
                         // 🌟【変更】currentHeightLayer++ を、ViewModelの「changeLayer(isUp = true)」に変更！
                         // 🌟【理由】階層ボタンを押した時も、ちゃんとDBの高さデータを書き換えるため。
-                        onClick = { viewModel.changeLayer(isUp = true) },
+                        onClick = {
+                            if (currentHeightLayer == 4) {
+                                viewModel.resetTreeGame()
+                            } else {
+                                viewModel.changeLayer(isUp = true)
+                            }
+                        },
                         modifier = Modifier.size(64.dp),
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
