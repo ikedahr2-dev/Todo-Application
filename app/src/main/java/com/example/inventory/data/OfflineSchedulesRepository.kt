@@ -2,7 +2,10 @@ package com.example.inventory.data
 
 import kotlinx.coroutines.flow.Flow
 
-class OfflineSchedulesRepository(private val scheduleDao: ScheduleDao) : SchedulesRepository {
+class OfflineSchedulesRepository(
+    private val scheduleDao: ScheduleDao,
+    private val gameDao: GameDao
+) : SchedulesRepository {
 
     //-- 全取得 --//
     override fun getAllSchedulesStream(): Flow<List<Schedule>> = scheduleDao.getAllSchedule()
@@ -26,4 +29,15 @@ class OfflineSchedulesRepository(private val scheduleDao: ScheduleDao) : Schedul
     // 💡【ここを追加】Daoの関数を呼び出してリポジトリ経由でデータ一覧を取得
     override suspend fun getOverdueIncompleteTasks(currentTime: Long): List<Schedule> =
         scheduleDao.getOverdueIncompleteTasks(currentTime)
+
+// ---------- Game ---------- //
+
+    //-- 取得 --//
+    override fun getGameStatusStream(): Flow<Game?> = gameDao.getGameStatus()
+
+    //-- 更新 --//
+    override suspend fun updateGameStatus(game: Game) = gameDao.updateGame(game)
+
+    //-- 保存 --//
+    override suspend fun insertGameStatus(game: Game) = gameDao.insertGame(game)
 }

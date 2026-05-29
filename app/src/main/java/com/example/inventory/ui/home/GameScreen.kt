@@ -24,28 +24,41 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.R
 import com.example.inventory.ui.AppViewModelProvider
+import com.example.inventory.data.Game // 🌟【追記】さっき作ったGameクラスを使えるようにインポート！
 
 @Composable
 fun GameScreen(
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     //ViewModelから最新のゲーム状態（水分量）をリアルタイムで取得
-    val uiState by viewModel.uiState.collectAsState()
+    // 🌟【変更】ここを既存の uiState から、新しく作った gameUiState（RoomDBと直結する箱）に変更したよ！
+    // 🌟【理由】元々の uiState はタスク等の別データ用なので、ゲーム専用のデータストリームを監視するためです。
+    val gameDataStream by viewModel.gameUiState.collectAsState(initial = null)
+
+    // 🌟【追記】データベースがまだ空っぽ（アプリ初回起動時など）の場合の初期値を用意しておく安心安全ロジック！
+    val gameData = gameDataStream ?: Game(waterStoredPercent = 0, currentLevel = 0, givenWaterCount = 0, currentHeightLayer = 0)
 
     //水分量(テスト時は固定の値を代入する)
-    //val waterStoredPercent = uiState.waterStoredPercent
-    val waterStoredPercent = 2400
+    // 🌟【変更】uiState.waterStoredPercent だったのを、上で取得した gameData から取り出す形に変更！
+    val waterStoredPercent = gameData.waterStoredPercent
+    //val waterStoredPercent = 2400
     //val waterStoredPercent = 1000
     //val waterStoredPercent = 100
     //val waterStoredPercent = 50
+
     //現在のレベルを管理する状態変数
-    var currentLevel by remember { mutableStateOf(0) }
+    // 🌟【変更】「var ... = remember」をコメントアウトして、DBの値（gameData）を直接入れる形に変更！
+    // 🌟【理由】rememberのままだと画面に一時保存されるだけでDBに保存されず、アプリを落としたらリセットされてしまうため。
+    // 🌟【移動】ここで行っていたタップ時の「計算処理（進化ロジック）」は、すべてViewModelの「waterTree()」関数へ引っ越しました！
+    val currentLevel = gameData.currentLevel
 
     //現在のレベルになってから「追加で水をあげた回数」を記録する
-    var givenWaterCount by remember { mutableStateOf(0) }
+    // 🌟【変更】上のレベルと同じ理由で、rememberからDBの値を直接見に行く形に変更したよ！
+    val givenWaterCount = gameData.givenWaterCount
 
     //高さを5段階で管理する状態変数 (0: 地上, 1: 上空, 2: 成層圏, 3: 外気圏, 4: 宇宙)
-    var currentHeightLayer by remember { mutableStateOf(0) }
+    // 🌟【変更】これも同じ理由でrememberを廃止してDB直結に。ボタンを押した時の増減関数はViewModelへ移動しました！
+    val currentHeightLayer = gameData.currentHeightLayer
 
     //現在のレベルに応じて、次の進化に必要な回数を自動で切り替える
     val totalWateringRequired = when (currentLevel) {
@@ -126,6 +139,11 @@ fun GameScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .clickable {
+                    // 🌟【変更】タップされたら、ViewModelに新しく作った進化関数「waterTree()」を1行呼ぶだけに大スッキリ化！
+                    // 🌟【理由】「画面をタップしたからDBの値を計算して書き換えてね」という命令をViewModelに伝えるためです。
+                    viewModel.waterTree()
+
+                    /* 元々ここに書いてあったロジックはすべてViewModel側の「waterTree()」に完全移植されました！
                     if (currentLevel < 14 && waterStoredPercent >= 100) {
                         viewModel.updateWaterStoredPercent(waterStoredPercent - 100)
                         givenWaterCount++
@@ -146,6 +164,7 @@ fun GameScreen(
                             }
                         }
                     }
+                    */
                 },
             contentScale = ContentScale.Crop
         )
@@ -287,7 +306,9 @@ fun GameScreen(
                         else -> ""
                     }
                     Button(
-                        onClick = { currentHeightLayer++ },
+                        // 🌟【変更】currentHeightLayer++ を、ViewModelの「changeLayer(isUp = true)」に変更！
+                        // 🌟【理由】階層ボタンを押した時も、ちゃんとDBの高さデータを書き換えるため。
+                        onClick = { viewModel.changeLayer(isUp = true) },
                         modifier = Modifier.size(64.dp),
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
@@ -311,7 +332,8 @@ fun GameScreen(
                         else -> ""
                     }
                     Button(
-                        onClick = { currentHeightLayer-- },
+                        // 🌟【変更】currentHeightLayer-- を、ViewModelの「changeLayer(isUp = false)」に変更！
+                        onClick = { viewModel.changeLayer(isUp = false) },
                         modifier = Modifier.size(64.dp),
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(

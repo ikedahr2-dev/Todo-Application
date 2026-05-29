@@ -11,6 +11,7 @@ import com.example.inventory.updateOngoingTaskCountNotification
 import com.example.inventory.scheduleTodoAlarm
 import com.example.inventory.scheduleTodoEndAlarm
 import com.example.inventory.convertDateTimeToMillis
+import com.example.inventory.data.Game
 import com.example.inventory.data.Schedule
 import com.example.inventory.data.SchedulesRepository
 import kotlinx.coroutines.flow.*
@@ -34,6 +35,14 @@ class HomeViewModel(
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
+
+    // ----- Game ----- //
+    val gameUiState: StateFlow<Game?> = schedulesRepository.getGameStatusStream()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null
+        )
 
     val uiState: StateFlow<HomeUiState> = schedulesRepository.getAllSchedulesStream()
         .combine(_uiState) { dbList, currentUiState ->
@@ -389,4 +398,121 @@ class HomeViewModel(
     fun updateSearchQuery(query: String) { _uiState.update { it.copy(searchQuery = query) } }
 
     companion object { private const val TIMEOUT_MILLIS = 5_000L }
+
+// ---------- Game ---------- //
+    fun waterTree() {
+        val currentGame = gameUiState.value
+
+        viewModelScope.launch {
+            // データが無いときは、最初は「水0%」で初期登録
+            if (currentGame == null) {
+                schedulesRepository.insertGameStatus(
+                    Game(
+                        id = 1,
+                        waterStoredPercent = 0,
+                        currentLevel = 0,
+                        givenWaterCount = 0,
+                        currentHeightLayer = 0
+                    )
+                )
+                return@launch
+            }
+
+            val currentHeightLayer = currentGame.currentHeightLayer
+            val currentLevel = currentGame.currentLevel
+            val givenWaterCount = currentGame.givenWaterCount
+            val waterStoredPercent = currentGame.waterStoredPercent   // 【取得】蓄えた水
+
+            if (waterStoredPercent >= 100 && currentLevel < 14) {
+                var newLevel = currentLevel
+                var newCount = givenWaterCount + 1
+                var newLayer = currentHeightLayer
+
+                val required = getRequiredCount(newLevel)
+
+                if (newCount >= required) {
+                    newLevel++
+                    newCount = 0
+
+                    when (newLevel) {
+                        6 -> newLayer = 1
+                        8 -> newLayer = 2
+                        10 -> newLayer = 3
+                        12 -> newLayer = 4
+                    }
+                }
+
+                schedulesRepository.insertGameStatus(
+                    Game(
+                        id = 1,
+                        waterStoredPercent = waterStoredPercent - 100,
+                        currentLevel = newLevel,
+                        givenWaterCount = newCount,
+                        currentHeightLayer = newLayer
+                    )
+                )
+            }
+        }
+    }
+
+    // GameScreenから移動した関数
+    private fun getRequiredCount(level: Int): Int {
+        return when (level) {
+            0 -> 3     //Lv.0 -> Lv.1
+            1 -> 18    //Lv.1 -> Lv.2
+            2 -> 39    //Lv.2 -> Lv.3
+            3 -> 52    //Lv.3 -> Lv.4
+            4 -> 80    //Lv.4 -> Lv.5
+            5 -> 120   //Lv.5 -> Lv.6
+            6 -> 160   //Lv.6 -> Lv.7
+            7 -> 250   //Lv.7 -> Lv.8
+            8 -> 380   //Lv.8 -> Lv.9
+            9 -> 470   //Lv.9 -> Lv.10
+            10 -> 630  //Lv.10 -> Lv.11
+            11 -> 670  //Lv.11 -> Lv.12
+            12 -> 852  //Lv.12 -> Lv.13
+            13 -> 1000 //Lv.13 -> Lv.14 (Max)
+            else -> 0
+        }
+    }
+
+    // ----- 階層管理 ----- //
+    fun changeLayer(isUp: Boolean) {
+        // 現在のゲームデータを取得
+        val currentGame = gameUiState.value ?: Game()
+        // 今いる位置の取得
+        val currentLayer = currentGame.currentHeightLayer
+
+        viewModelScope.launch {
+            // 階層ごとにcurrentHeightLayerだけを+-1して、DBに保存
+            schedulesRepository.updateGameStatus(
+                currentGame.copy(
+                    currentHeightLayer = if (isUp) currentLayer + 1 else currentLayer - 1
+                )
+            )
+        }
+    }
+
+    // ----- 木の初期化(水以外) ----- //
+
+    fun resetGameKeepWater() {
+        // 現在のゲームデータの取得
+        val currentGame = gameUiState.value ?: return // もしデータがなければ何もしない
+
+        // 現在の蓄えられた水の取得
+        val currentWater = currentGame.waterStoredPercent
+
+        viewModelScope.launch {
+            // idと水だけを引き継ぎ、それ以外を「0」に初期化してDBをUpdateする！
+            schedulesRepository.insertGameStatus(
+                Game(
+                    id = 1,                            // idそのまま
+                    waterStoredPercent = currentWater, // 水そのまま
+                    currentLevel = 0,                  // レベル初期化
+                    givenWaterCount = 0,               // 水あげた回数初期化
+                    currentHeightLayer = 0             // 階層初期化
+                )
+            )
+        }
+    }
 }
