@@ -77,17 +77,16 @@ fun GameScreen(
     // 🌟【変更】これも同じ理由でrememberを廃止してDB直結に。ボタンを押した時の増減関数はViewModelへ移動しました！
     val currentHeightLayer = gameData.currentHeightLayer
 
-    // 💡【追加】3日間（72時間）放置されたかをミリ秒で判定する仕組み
-    // val threeDaysInMillis = 72L * 60 * 60 * 1000
+    //3日間（72時間）放置されたかをミリ秒で判定する仕組み
+    //val threeDaysInMillis = 72L * 60 * 60 * 1000
 
-    // 🧪（テスト用ショートカット：5分放置で即座に枯れる設定にしています！）
-    val threeDaysInMillis = 5L * 60 * 1000
+    //テスト用ショートカット
+    val threeDaysInMillis = 1L * 60 * 1000
 
-    // 💡【修正】リフレクションを廃止。デバイスに確実に保存されている「最後に水をあげた時間」を直接取得
-    // 初回はデータがないので、今の時間を基準として保存します
+    // デバイスに確実に保存されている「最後に水をあげた時間」を直接取得
     val lastWateredTime = gamePrefs.getLong("last_watered_time_key", tickerTime)
 
-    // 💡【追加】条件：Lv.1以上の状態で、最後に水やりをしてから5分以上が経過しているか（tickerTime基準で毎秒判定！）
+    //Lv.1以上の状態で、最後に水やりをしてから3日（テスト時は5分）以上が経過しているか
     val isDead = currentLevel >= 1 && (tickerTime - lastWateredTime >= threeDaysInMillis)
 
     /*現在のレベルに応じて、次の進化に必要な回数を自動で切り替える
@@ -110,9 +109,17 @@ fun GameScreen(
     }*/
 
     //5段階の高さレイヤーに応じた画像切り替えロジック
-    // 💡【追加】もし枯れている（isDead == true）なら、すべての階層を無視して即「game_tree_death_1」を表示する
+    //もし枯れている（isDead == true）なら、現在のレベルに応じたDeath画像に分岐切り替える
     val currentImageResId = if (isDead) {
-        R.drawable.game_tree_death_1
+        when (currentLevel) {
+            1 -> R.drawable.game_tree_death_1
+            2 -> R.drawable.game_tree_death_2
+            3 -> R.drawable.game_tree_death_3
+            4 -> R.drawable.game_tree_death_4
+            5 -> R.drawable.game_tree_death_5
+            6 -> R.drawable.game_tree_death_6
+            else -> R.drawable.game_tree_death_6
+        }
     } else {
         when (currentHeightLayer) {
             1 -> {//上空
@@ -174,13 +181,13 @@ fun GameScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .clickable {
-                    // 枯れていない（isDead == false）ときだけ水やりを進化関数に伝える
+                    //枯れていない（isDead == false）ときだけ水やりを進化関数に伝える
                     if (!isDead) {
                         // 🌟【変更】タップされたら、ViewModelに新しく作った進化関数「waterTree()」を1行呼ぶだけに大スッキリ化！
                         // 🌟【理由】「画面をタップしたからDBの値を計算して書き換えてね」という命令をViewModelに伝えるためです。
                         viewModel.waterTree()
 
-                        // ✨ 画面タップ（水やり）が成功した瞬間の時刻をSharedPreferenceに上書きコミット！
+                        // 画面タップ（水やり）が成功した瞬間の時刻をSharedPreferenceに上書きコミット！
                         gamePrefs.edit().putLong("last_watered_time_key", System.currentTimeMillis()).apply()
                     }
 
@@ -243,10 +250,10 @@ fun GameScreen(
             val msgColor = Color(0xFFFFEB3B)
             val msgAlign = androidx.compose.ui.text.style.TextAlign.Center
 
-            // 💡【追加】もし枯れてしまった場合の専用メッセージ表示
+            //もし枯れてしまった場合の専用メッセージ表示
             if (isDead) {
                 Text(
-                    text = "💀 長期間水を与えなかったため、木が枯れてしまいました...\n右下の「リセット」ボタンからやり直しましょう",
+                    text = "💀 長期間水を与えなかったため、生命は朽ち果て\n木は枯れ果てました。",
                     color = Color.Red,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
@@ -254,12 +261,24 @@ fun GameScreen(
                 )
             } else {
                 when (currentLevel) {
-                    0 -> Text(text = if (waterStoredPercent < 100) "タスクを完了させて水を貯めましょう！" else "水をあげて芽を咲かせましょう！", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
-                    1 -> Text(text = if (waterStoredPercent < 100) "水をあげて芽を咲かせましょう！" else "✨芽が生えてきました！Lv.1！🌱", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
-                    2 -> Text(text = if (waterStoredPercent < 100) "✨芽が生えてきました！Lv.1！🌱" else "✨芽が成長しました！Lv.2！🌱", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
-                    3 -> Text(text = if (waterStoredPercent < 100) "✨芽が成長しました！Lv.2！🌱" else "✨木に成長しました！Lv.3！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
-                    4 -> Text(text = if (waterStoredPercent < 100) "✨木に成長しました！Lv.3！🌳" else "✨木が成長しました！Lv.4！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
-                    5 -> Text(text = if (waterStoredPercent < 100) "✨木に成長しました！Lv.4！🌳" else "✨木が成長しました！Lv.5！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+                    0 -> Text(text = if (waterStoredPercent < 100) "タスクを完了させて水を貯めましょう！"
+                    else "水をあげて芽を咲かせましょう！", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+
+                    1 -> Text(text = if (waterStoredPercent < 100) "水をあげて芽を咲かせましょう！"
+                    else "✨芽が生えてきました！Lv.1！🌱", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+
+                    2 -> Text(text = if (waterStoredPercent < 100) "✨芽が生えてきました！Lv.1！🌱"
+                    else "✨芽が成長しました！Lv.2！🌱", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+
+                    3 -> Text(text = if (waterStoredPercent < 100) "✨芽が成長しました！Lv.2！🌱"
+                    else "✨木に成長しました！Lv.3！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+
+                    4 -> Text(text = if (waterStoredPercent < 100) "✨木に成長しました！Lv.3！🌳"
+                    else "✨木が成長しました！Lv.4！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+
+                    5 -> Text(text = if (waterStoredPercent < 100) "✨木に成長しました！Lv.4！🌳"
+                    else "✨木が成長しました！Lv.5！🌳", color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+
                     6 -> {
                         Text(
                             text = if (currentHeightLayer == 1) "☁️ 上空へ到達！！Lv.6" else "✨木が成長した！Lv.6！🌳",
@@ -282,7 +301,7 @@ fun GameScreen(
                     }
                     9 -> {
                         val lvl9Msg = when (currentHeightLayer) {
-                            2 -> "🌈 対流圏に向けて伸びる！！！Lv.9"
+                            2 -> "🌈 对流圏に向けて伸びる！！！Lv.9"
                             1 -> "☁️ 星に手が届きそう！Lv.9"
                             else -> "🌳木はまだまだ成長できる！Lv.9"
                         }
@@ -331,7 +350,7 @@ fun GameScreen(
         }
 
         //階層切り替えボタンエリア（解放レベルに応じて上下2ボタンが動的に追加）
-        // 💡【追加条件】もし枯れてしまった場合（isDead == true）も、即座にリセット復活できるようにボタン領域を解放します
+        //もし枯れてしまった場合（isDead == true）も、即座にリセット復活できるようにボタン領域を解放します
         if (isDead || currentLevel >= 6) {
             Column(
                 modifier = Modifier
@@ -365,7 +384,7 @@ fun GameScreen(
                         onClick = {
                             if (isDead || currentHeightLayer == 4) {
                                 viewModel.resetTreeGame()
-                                // 💡 復活リセットしたタイミングで、放置タイマーの身代わり値を初期化
+                                // 復活リセットしたタイミングで、放置タイマーのデータを初期化
                                 gamePrefs.edit().putLong("last_watered_time_key", System.currentTimeMillis()).apply()
                             } else {
                                 viewModel.changeLayer(isUp = true)
