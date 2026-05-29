@@ -28,6 +28,7 @@ import com.example.inventory.R
 import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.data.Game // 🌟【追記】さっき作ったGameクラスを使えるようにインポート！
 import kotlinx.coroutines.delay
+import kotlin.random.Random
 
 @Composable
 fun GameScreen(
@@ -86,8 +87,19 @@ fun GameScreen(
     // デバイスに確実に保存されている「最後に水をあげた時間」を直接取得
     val lastWateredTime = gamePrefs.getLong("last_watered_time_key", tickerTime)
 
-    //Lv.1以上の状態で、最後に水やりをしてから3日（テスト時は5分）以上が経過しているか
-    val isDead = currentLevel >= 1 && (tickerTime - lastWateredTime >= threeDaysInMillis)
+    //最後に水やりをしてから3日（テスト時は5分）以上が経過しているか
+    val isDead = currentLevel in 1..13 && (tickerTime - lastWateredTime >= threeDaysInMillis)
+
+    //砂嵐（ノイズ）アニメーション用の超高速タイマー
+    var noiseTrigger by remember { mutableStateOf(0) }
+    if (isDead) {
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(10) //80ミリ秒ごとにランダムな砂嵐に切り替えてチラチラさせる
+                noiseTrigger++
+            }
+        }
+    }
 
     /*現在のレベルに応じて、次の進化に必要な回数を自動で切り替える
     val totalWateringRequired = when (currentLevel) {
@@ -217,6 +229,19 @@ fun GameScreen(
             contentScale = ContentScale.Crop
         )
 
+        if (isDead) {
+            key(noiseTrigger) {
+                //砂嵐の色の濃さをランダムにしてよりそれっぽく演出 (アルファ値 0.08 〜 0.15)
+                val alpha = Random.nextFloat() * 0.07f + 0.3f
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        //黒とグレーのノイズ成分をブレンド
+                        .background(Color.Black.copy(alpha = alpha))
+                )
+            }
+        }
+
         //上部：UIパネル
         Column(
             modifier = Modifier
@@ -343,7 +368,7 @@ fun GameScreen(
                             1 -> "☁️ 空は青いですね！Lv.Max"
                             else -> "🌳地球を覆いつくす木になった！Max"
                         }
-                        Text(text = lvl13Msg, color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
+                        Text(text = lvl13Msg, color = Color(0xFF00E676), fontSize = 13.sp, textAlign = msgAlign)
                     }
                 }
             }
