@@ -387,7 +387,12 @@ fun HomeScreen(
                     onDismissRequest = { showTimePicker = false },
                     confirmButton = {
                         TextButton(onClick = {
-                            selectedTime = String.format("%02d:%02d", timePickerState.hour, timePickerState.minute)
+
+                            // ----- 5分刻み ----- //
+                            val roundedMinute = ((timePickerState.minute + 2) / 5) * 5 % 60
+                            val displayHour = if (timePickerState.minute >= 58) (timePickerState.hour + 1) % 24 else timePickerState.hour
+
+                            selectedTime = String.format("%02d:%02d", displayHour, roundedMinute)
                             showTimePicker = false
                         }) { Text(stringResource(R.string.enter)) }
                     },
@@ -402,7 +407,12 @@ fun HomeScreen(
                     onDismissRequest = { showEndTimePicker = false },
                     confirmButton = {
                         TextButton(onClick = {
-                            selectedEndTime = String.format("%02d:%02d", timePickerState.hour, timePickerState.minute)
+
+                            // ----- 5分刻み ----- //
+                            val roundedMinute = ((timePickerState.minute + 2) / 5) * 5 % 60
+                            val displayHour = if (timePickerState.minute >= 58) (timePickerState.hour + 1) % 24 else timePickerState.hour
+
+                            selectedEndTime = String.format("%02d:%02d", displayHour, roundedMinute)
                             showEndTimePicker = false
                         }) { Text(stringResource(R.string.enter)) }
                     },
