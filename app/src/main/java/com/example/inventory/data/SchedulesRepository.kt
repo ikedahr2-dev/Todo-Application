@@ -24,4 +24,12 @@ interface SchedulesRepository {
 
     //期限切れの未完了タスク一覧を取得
     suspend fun getOverdueIncompleteTasks(currentTime: Long): List<Schedule>
+
+// ---------- Game ---------- //
+
+    fun getGameStatusStream(): Flow<Game?>
+    suspend fun updateGameStatus(game: Game)
+
+    // データの保存関数
+    suspend fun insertGameStatus(game: Game)
 }
