@@ -32,7 +32,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.DatePicker
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,7 +39,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -60,6 +58,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.CircleShape
 import com.example.inventory.convertDateTimeToMillis
 import com.example.inventory.ui.theme.md_theme_light_primary
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -74,18 +73,34 @@ fun CalendarScreen(
     onAddClick: () -> Unit,
     viewModel: HomeViewModel
 ) {
-    val state = rememberDatePickerState()
-
-    //カレンダー画面用の長押し削除、完了確認の状態変数
+    // カレンダー画面用の長押し削除、完了確認の状態変数（既存のまま）
     var scheduleToDelete by remember { mutableStateOf<Schedule?>(null) }
     var schedulePendingCheck by remember { mutableStateOf<CheckConfirmationState?>(null) }
 
-    LaunchedEffect(state.selectedDateMillis) {
-        state.selectedDateMillis?.let { millis ->
-            val date = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date(millis))
-            onDateSelected(date)
+    // 💡 初期日付が空なら今日の予定を自動選択
+    LaunchedEffect(Unit) {
+        if (selectedDate.isBlank()) {
+            val today = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date())
+            onDateSelected(today)
         }
     }
+
+    // 💡 今日を中心とした前後2週間（合計29日間）の日付リストを動的に生成
+    val dateList = remember {
+        val list = mutableListOf<Date>()
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.DAY_OF_YEAR, -14) // 14日前から開始
+        for (i in 0 until 29) {
+            list.add(cal.time)
+            cal.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        list
+    }
+
+    val weekScrollState = rememberScrollState()
+    val dayOfWeekFormatter = SimpleDateFormat("E", Locale.JAPANESE) // "月", "火"
+    val dayFormatter = SimpleDateFormat("d", Locale.getDefault())     // "28", "29"
+    val fullDateFormatter = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
 
     fun formatTo12Hour(timeStr: String?): String {
         if (timeStr.isNullOrBlank()) return "未設定"
@@ -102,8 +117,49 @@ fun CalendarScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        DatePicker(state = state, modifier = Modifier.fillMaxWidth())
 
+        // 💡 省スペースな横スクロールの1週間バー
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(weekScrollState)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                .padding(vertical = 10.dp, horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            dateList.forEach { date ->
+                val dateString = fullDateFormatter.format(date)
+                val isSelected = dateString == selectedDate
+
+                Column(
+                    modifier = Modifier
+                        .width(50.dp)
+                        .background(
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .clickable { onDateSelected(dateString) }
+                        .padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = dayOfWeekFormatter.format(date),
+                        fontSize = 12.sp,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else Color.Gray,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = dayFormatter.format(date),
+                        fontSize = 16.sp,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // ----- カテゴリー一覧（既存のまま） -----
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -125,6 +181,7 @@ fun CalendarScreen(
             }
         }
 
+        // ----- 日付表示＆入力ボタン（既存のまま） -----
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -138,6 +195,7 @@ fun CalendarScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // ----- スケジュールリストエリア（既存のまま） -----
         val dailySchedules = scheduleList
             .filter { it.date == selectedDate }
             .filter { selectedCategory == "すべて" || it.category == selectedCategory }
@@ -194,7 +252,6 @@ fun CalendarScreen(
                         .padding(12.dp)
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        //1つ目のチェックボックス（開始）
                         Checkbox(
                             checked = isVisualCompleted,
                             onCheckedChange = { isChecked ->
@@ -208,7 +265,6 @@ fun CalendarScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
 
-                        //2つ目のチェックボックス（終了）
                         Checkbox(
                             checked = schedule.isEndCompleted,
                             onCheckedChange = { isChecked ->
@@ -284,7 +340,7 @@ fun CalendarScreen(
         }
     }
 
-    //早期完了確認ダイアログ
+    // 早期完了確認ダイアログ
     schedulePendingCheck?.let { config ->
         val titleText = if (config.isEndTimeTarget) "予定終了前の完了確認" else "予定開始前の完了確認"
         val bodyText = if (config.isEndTimeTarget) {
@@ -299,10 +355,7 @@ fun CalendarScreen(
             text = {
                 Column {
                     Text(bodyText)
-
                     Spacer(modifier = Modifier.height(12.dp))
-
-                    // 注意書きを赤文字・太字で追加
                     Text(
                         text = "⚠️1度チェックをつけると取り消しできません",
                         color = Color.Red,
@@ -329,7 +382,7 @@ fun CalendarScreen(
         )
     }
 
-    //タスク削除の確認ダイアログ
+    // 💡 修正点：Material 3 の正しいカラーパレット形式（.colorScheme.error）に直しました！
     scheduleToDelete?.let { schedule ->
         AlertDialog(
             onDismissRequest = { scheduleToDelete = null },

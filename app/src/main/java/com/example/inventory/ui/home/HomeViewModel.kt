@@ -465,7 +465,7 @@ class HomeViewModel(
     private fun getRequiredCount(level: Int): Int {
         return when (level) {
             //テスト
-            0 -> 1   //Lv.0 -> Lv.1
+            /*0 -> 1   //Lv.0 -> Lv.1
             1 -> 1   //Lv.1 -> Lv.2
             2 -> 1   //Lv.2 -> Lv.3
             3 -> 1   //Lv.3 -> Lv.4
@@ -478,9 +478,9 @@ class HomeViewModel(
             10 -> 1  //Lv.10 -> Lv.11
             11 -> 1  //Lv.11 -> Lv.12
             12 -> 1  //Lv.12 -> Lv.13
-            13 -> 1  //Lv.13 -> Lv.14 (Max)
+            13 -> 1  //Lv.13 -> Lv.14 (Max)*/
 
-            /*0 -> 3     //Lv.0 -> Lv.1
+            0 -> 3     //Lv.0 -> Lv.1
             1 -> 18    //Lv.1 -> Lv.2
             2 -> 39    //Lv.2 -> Lv.3
             3 -> 52    //Lv.3 -> Lv.4
@@ -493,7 +493,7 @@ class HomeViewModel(
             10 -> 630  //Lv.10 -> Lv.11
             11 -> 670  //Lv.11 -> Lv.12
             12 -> 852  //Lv.12 -> Lv.13
-            13 -> 1000 //Lv.13 -> Lv.14 (Max)*/
+            13 -> 1000 //Lv.13 -> Lv.14 (Max)
             else -> 0
         }
     }
