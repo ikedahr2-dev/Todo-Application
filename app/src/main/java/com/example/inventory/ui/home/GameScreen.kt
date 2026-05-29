@@ -1,5 +1,6 @@
 package com.example.inventory.ui.home
 
+import android.content.Context
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -17,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.inventory.R
 import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.data.Game // 🌟【追記】さっき作ったGameクラスを使えるようにインポート！
+import kotlinx.coroutines.delay
 
 @Composable
 fun GameScreen(
@@ -37,6 +40,20 @@ fun GameScreen(
 
     // 🌟【追記】データベースがまだ空っぽ（アプリ初回起動時など）の場合の初期値を用意しておく安心安全ロジック！
     val gameData = gameDataStream ?: Game(waterStoredPercent = 0, currentLevel = 0, givenWaterCount = 0, currentHeightLayer = 0)
+
+    val context = LocalContext.current
+
+    // 💡【新設】確実に時間を追跡するため、ViewModelと同じ保存領域（SharedPreference）を画面側でも見に行く
+    val gamePrefs = remember { context.getSharedPreferences("game_data", Context.MODE_PRIVATE) }
+
+    // 💡【追加】開きっぱなしでも1秒ごとに画面を強制更新して時間を再計算させるための「心臓タイマー」
+    var tickerTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000) // 1秒ごとに
+            tickerTime = System.currentTimeMillis() // 現在時刻を更新して画面を強制リコンポジション
+        }
+    }
 
     //水分量(テスト時は固定の値を代入する)
     // 🌟【変更】uiState.waterStoredPercent だったのを,上で取得した gameData から取り出す形変更！
@@ -60,22 +77,18 @@ fun GameScreen(
     // 🌟【変更】これも同じ理由でrememberを廃止してDB直結に。ボタンを押した時の増減関数はViewModelへ移動しました！
     val currentHeightLayer = gameData.currentHeightLayer
 
-    //3日間（72時間）放置されたかをミリ秒で判定する仕組み
-    //val threeDaysInMillis = 72L * 60 * 60 * 1000
+    // 💡【追加】3日間（72時間）放置されたかをミリ秒で判定する仕組み
+    // val threeDaysInMillis = 72L * 60 * 60 * 1000
 
-    //テスト用
+    // 🧪（テスト用ショートカット：5分放置で即座に枯れる設定にしています！）
     val threeDaysInMillis = 5L * 60 * 1000
 
-    // Gameオブジェクトからリフレクションを用いて安全に「最後に水をあげた時間」を取得します
-    val lastWateredTime = try {
-        gameData.javaClass.getMethod("getLastWateredTimeMillis").invoke(gameData) as? Long
-            ?: System.currentTimeMillis()
-    } catch (e: Exception) {
-        System.currentTimeMillis()
-    }
+    // 💡【修正】リフレクションを廃止。デバイスに確実に保存されている「最後に水をあげた時間」を直接取得
+    // 初回はデータがないので、今の時間を基準として保存します
+    val lastWateredTime = gamePrefs.getLong("last_watered_time_key", tickerTime)
 
-    //条件：Lv.1以上の状態で、最後に水やりをしてから3日以上が経過しているか
-    val isDead = currentLevel >= 1 && (System.currentTimeMillis() - lastWateredTime >= threeDaysInMillis)
+    // 💡【追加】条件：Lv.1以上の状態で、最後に水やりをしてから5分以上が経過しているか（tickerTime基準で毎秒判定！）
+    val isDead = currentLevel >= 1 && (tickerTime - lastWateredTime >= threeDaysInMillis)
 
     /*現在のレベルに応じて、次の進化に必要な回数を自動で切り替える
     val totalWateringRequired = when (currentLevel) {
@@ -97,7 +110,7 @@ fun GameScreen(
     }*/
 
     //5段階の高さレイヤーに応じた画像切り替えロジック
-    //もし枯れている（isDead == true）なら、すべての階層を無視して即「game_tree_death_1」を表示する
+    // 💡【追加】もし枯れている（isDead == true）なら、すべての階層を無視して即「game_tree_death_1」を表示する
     val currentImageResId = if (isDead) {
         R.drawable.game_tree_death_1
     } else {
@@ -161,11 +174,14 @@ fun GameScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .clickable {
-                    //枯れていない（isDead == false）ときだけ水やりを進化関数に伝える
+                    // 枯れていない（isDead == false）ときだけ水やりを進化関数に伝える
                     if (!isDead) {
                         // 🌟【変更】タップされたら、ViewModelに新しく作った進化関数「waterTree()」を1行呼ぶだけに大スッキリ化！
                         // 🌟【理由】「画面をタップしたからDBの値を計算して書き換えてね」という命令をViewModelに伝えるためです。
                         viewModel.waterTree()
+
+                        // ✨ 画面タップ（水やり）が成功した瞬間の時刻をSharedPreferenceに上書きコミット！
+                        gamePrefs.edit().putLong("last_watered_time_key", System.currentTimeMillis()).apply()
                     }
 
                     /* 元々ここに書いてあったロジックはすべてViewModel側の「waterTree()」に完全移植されました！
@@ -227,7 +243,7 @@ fun GameScreen(
             val msgColor = Color(0xFFFFEB3B)
             val msgAlign = androidx.compose.ui.text.style.TextAlign.Center
 
-            //もし枯れてしまった場合の専用メッセージ表示
+            // 💡【追加】もし枯れてしまった場合の専用メッセージ表示
             if (isDead) {
                 Text(
                     text = "💀 長期間水を与えなかったため、木が枯れてしまいました...\n右下の「リセット」ボタンからやり直しましょう",
@@ -282,7 +298,6 @@ fun GameScreen(
                         Text(text = lvl10Msg, color = msgColor, fontSize = 13.sp, textAlign = msgAlign)
                     }
                     11 -> {
-                        // 💡【修正】はみ出して型エラーを起こしていた行を、whenのルール（Text描画）に則ってクリーンに修正統合しました！
                         val lvl11Msg = when (currentHeightLayer) {
                             3 -> "⭐ 星を採集できる！！！！Lv.11"
                             2 -> "🌌 宇宙の果てへ進化完了！！！Lv.11"
@@ -316,7 +331,7 @@ fun GameScreen(
         }
 
         //階層切り替えボタンエリア（解放レベルに応じて上下2ボタンが動的に追加）
-        //もし枯れてしまった場合（isDead == true）も、即座にリセット復活できるようにボタン領域を解放します
+        // 💡【追加条件】もし枯れてしまった場合（isDead == true）も、即座にリセット復活できるようにボタン領域を解放します
         if (isDead || currentLevel >= 6) {
             Column(
                 modifier = Modifier
@@ -350,6 +365,8 @@ fun GameScreen(
                         onClick = {
                             if (isDead || currentHeightLayer == 4) {
                                 viewModel.resetTreeGame()
+                                // 💡 復活リセットしたタイミングで、放置タイマーの身代わり値を初期化
+                                gamePrefs.edit().putLong("last_watered_time_key", System.currentTimeMillis()).apply()
                             } else {
                                 viewModel.changeLayer(isUp = true)
                             }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -32,6 +33,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.DatePicker
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,6 +41,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -58,7 +61,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.CircleShape
 import com.example.inventory.convertDateTimeToMillis
 import com.example.inventory.ui.theme.md_theme_light_primary
-import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -73,34 +75,17 @@ fun CalendarScreen(
     onAddClick: () -> Unit,
     viewModel: HomeViewModel
 ) {
-    // カレンダー画面用の長押し削除、完了確認の状態変数（既存のまま）
+    val state = rememberDatePickerState()
+
     var scheduleToDelete by remember { mutableStateOf<Schedule?>(null) }
     var schedulePendingCheck by remember { mutableStateOf<CheckConfirmationState?>(null) }
 
-    // 💡 初期日付が空なら今日の予定を自動選択
-    LaunchedEffect(Unit) {
-        if (selectedDate.isBlank()) {
-            val today = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date())
-            onDateSelected(today)
+    LaunchedEffect(state.selectedDateMillis) {
+        state.selectedDateMillis?.let { millis ->
+            val date = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date(millis))
+            onDateSelected(date)
         }
     }
-
-    // 💡 今日を中心とした前後2週間（合計29日間）の日付リストを動的に生成
-    val dateList = remember {
-        val list = mutableListOf<Date>()
-        val cal = Calendar.getInstance()
-        cal.add(Calendar.DAY_OF_YEAR, -14) // 14日前から開始
-        for (i in 0 until 29) {
-            list.add(cal.time)
-            cal.add(Calendar.DAY_OF_YEAR, 1)
-        }
-        list
-    }
-
-    val weekScrollState = rememberScrollState()
-    val dayOfWeekFormatter = SimpleDateFormat("E", Locale.JAPANESE) // "月", "火"
-    val dayFormatter = SimpleDateFormat("d", Locale.getDefault())     // "28", "29"
-    val fullDateFormatter = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
 
     fun formatTo12Hour(timeStr: String?): String {
         if (timeStr.isNullOrBlank()) return "未設定"
@@ -118,50 +103,31 @@ fun CalendarScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
 
-        // 💡 省スペースな横スクロールの1週間バー
-        Row(
+        // 💡 【バグ修正点】無理なスケール(scale)やマイナス補正(offset)をすべて廃止！
+        // 内部の文字描画の歪み・潰れを完全に防御し、標準の等間隔レイアウトを維持します。
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(weekScrollState)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                .padding(vertical = 10.dp, horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .wrapContentHeight() // 👈 無理に高さを固定せず、ヘッダーを消した正しいサイズに自動追従させる
+                .background(MaterialTheme.colorScheme.surface),
+            contentAlignment = Alignment.TopCenter
         ) {
-            dateList.forEach { date ->
-                val dateString = fullDateFormatter.format(date)
-                val isSelected = dateString == selectedDate
-
-                Column(
-                    modifier = Modifier
-                        .width(50.dp)
-                        .background(
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .clickable { onDateSelected(dateString) }
-                        .padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = dayOfWeekFormatter.format(date),
-                        fontSize = 12.sp,
-                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else Color.Gray,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = dayFormatter.format(date),
-                        fontSize = 16.sp,
-                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
+            DatePicker(
+                state = state,
+                modifier = Modifier.fillMaxWidth(), // 👈 scale(0.85f) や offset などの歪みの原因を排除！
+                showModeToggle = false, // ペンアイコン（モード切り替え）を非表示
+                // 🌟 titleとheadlineに「null」を指定することで、1枚目の画像にあった「Select date」領域を根本から消去！
+                title = null,
+                headline = null
+            )
         }
 
         // ----- カテゴリー一覧（既存のまま） -----
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -172,7 +138,9 @@ fun CalendarScreen(
                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.height(40.dp).clickable { onCategorySelected(category) }
+                    modifier = Modifier
+                        .height(40.dp)
+                        .clickable { onCategorySelected(category) }
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 16.dp)) {
                         Text(text = category, fontSize = 16.sp)
@@ -183,11 +151,18 @@ fun CalendarScreen(
 
         // ----- 日付表示＆入力ボタン（既存のまま） -----
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = selectedDate.ifEmpty { "日付を選択" }, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp))
+            Text(
+                text = selectedDate.ifEmpty { "日付を選択" },
+                fontSize = 24.sp,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 8.dp)
+            )
             Button(onClick = { onAddClick() }, enabled = selectedDate.isNotBlank(), shape = RoundedCornerShape(8.dp)) {
                 Text("予定を入力")
             }
@@ -202,7 +177,9 @@ fun CalendarScreen(
             .sortedBy { it.time }
 
         LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) {
             items(dailySchedules, key = { it.id }) { schedule ->
@@ -302,11 +279,23 @@ fun CalendarScreen(
                             Text(text = " ➔ ", fontSize = 12.sp, color = Color.Gray.copy(alpha = 0.6f))
                             Text(text = " ${displayEndTime}", fontSize = 14.sp, color = Color.Gray)
                         }
-                        Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(26.dp).rotate(arrowRotationDegree))
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(26.dp)
+                                .rotate(arrowRotationDegree)
+                        )
                     }
 
                     AnimatedVisibility(visible = expanded) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp, start = 4.dp, end = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp, start = 4.dp, end = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             Divider(modifier = Modifier.padding(bottom = 6.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                             val formattedDate = if (!schedule.date.isNullOrBlank()) {
                                 val parts = schedule.date.split("/")
@@ -382,7 +371,7 @@ fun CalendarScreen(
         )
     }
 
-    // 💡 修正点：Material 3 の正しいカラーパレット形式（.colorScheme.error）に直しました！
+    // タスク削除の確認ダイアログ
     scheduleToDelete?.let { schedule ->
         AlertDialog(
             onDismissRequest = { scheduleToDelete = null },
